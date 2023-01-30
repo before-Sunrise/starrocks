@@ -400,7 +400,7 @@ struct LeadLagState {
     bool defualt_is_null = false;
 };
 
-template <LogicalType PT, typename T = RunTimeCppType<PT>>
+template <LogicalType PT, bool ignoreNulls, bool use_lag, typename T = RunTimeCppType<PT>>
 class LeadLagWindowFunction final : public ValueWindowFunction<PT, LeadLagState<PT>, T> {
     using InputColumnType = typename ValueWindowFunction<PT, FirstValueState<PT>, T>::InputColumnType;
 
