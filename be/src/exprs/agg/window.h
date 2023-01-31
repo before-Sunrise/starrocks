@@ -432,16 +432,33 @@ class LeadLagWindowFunction final : public ValueWindowFunction<PT, LeadLagState<
             return;
         }
 
-        if (columns[0]->is_null(frame_end - 1)) {
+        if (!columns[0]->is_null(frame_end - 1)) {
+            this->data(state).is_null = false;
+            const Column* data_column = ColumnHelper::get_data_column(columns[0]);
+            const InputColumnType* column = down_cast<const InputColumnType*>(data_column);
+            AggDataTypeTraits<PT>::assign_value(this->data(state).value,
+                                            AggDataTypeTraits<PT>::get_row_ref(*column, frame_end - 1));
+        } else{
+            if(!ignoreNulls){
+                this->data(state).is_null = true;
+                return;
+            }
+            // for lead/lag, [peer_group_start, peer_group_end) equals to [partition_start, partition_end]
+            size_t value_index = use_lag ? ColumnHelper::last_nonnull(columns[0], peer_group_start, frame_end - 1):
+                                            ColumnHelper::find_nonnull(columns[0], frame_end, peer_group_end);
+            if (value_index == frame_end || columns[0]->is_null(value_index)) {
             this->data(state).is_null = true;
-            return;
+            } else {
+                const Column* data_column = ColumnHelper::get_data_column(columns[0]);
+                const InputColumnType* column = down_cast<const InputColumnType*>(data_column);
+                this->data(state).is_null = false;
+                AggDataTypeTraits<PT>::assign_value(this->data(state).value,
+                                                AggDataTypeTraits<PT>::get_row_ref(*column, value_index));
+            }
+
         }
 
-        this->data(state).is_null = false;
-        const Column* data_column = ColumnHelper::get_data_column(columns[0]);
-        const InputColumnType* column = down_cast<const InputColumnType*>(data_column);
-        AggDataTypeTraits<PT>::assign_value(this->data(state).value,
-                                            AggDataTypeTraits<PT>::get_row_ref(*column, frame_end - 1));
+        
     }
 
     void get_values(FunctionContext* ctx, ConstAggDataPtr __restrict state, Column* dst, size_t start,
