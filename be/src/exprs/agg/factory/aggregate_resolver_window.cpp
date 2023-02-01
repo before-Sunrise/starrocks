@@ -44,7 +44,7 @@ struct WindowDispatcher {
                                                             AggregateFactory::MakeLeadLagWindowFunction<pt, false, true>());
             // use lag_in for lag with ingnore nulls.
             resolver->add_aggregate_mapping_notnull<pt, pt>("lag_in", true,
-                                                            AggregateFactory::MakeLeadLagWindowFunction<pt, true, false>());
+                                                            AggregateFactory::MakeLeadLagWindowFunction<pt, true, true>());
         }
     }
 };

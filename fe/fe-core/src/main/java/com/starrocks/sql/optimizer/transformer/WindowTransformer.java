@@ -156,11 +156,6 @@ public class WindowTransformer {
                 windowFrame = new AnalyticWindow(AnalyticWindow.Type.ROWS,
                         new AnalyticWindow.Boundary(AnalyticWindow.BoundaryType.UNBOUNDED_PRECEDING, null),
                         new AnalyticWindow.Boundary(rightBoundaryType, rightBoundary, offsetValue));
-
-                if (callExpr.getIgnoreNulls()) {
-                    windowFrame.setRightBoundary(
-                            new AnalyticWindow.Boundary(AnalyticWindow.BoundaryType.UNBOUNDED_PRECEDING, null));
-                }
             } catch (AnalysisException e) {
                 throw new SemanticException(e.getMessage());
             }

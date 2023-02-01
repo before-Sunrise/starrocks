@@ -443,11 +443,12 @@ class LeadLagWindowFunction final : public ValueWindowFunction<PT, LeadLagState<
                 this->data(state).is_null = true;
                 return;
             }
-            // for lead/lag, [peer_group_start, peer_group_end) equals to [partition_start, partition_end]
+            // for lead/lag, [peer_group_start, peer_group_end] equals to [partition_start, partition_end]
+            // when lead/lag called, the whole partitoin's data already been here, so we can just check to the begining or the end
             size_t value_index = use_lag ? ColumnHelper::last_nonnull(columns[0], peer_group_start, frame_end - 1):
                                             ColumnHelper::find_nonnull(columns[0], frame_end, peer_group_end);
-            if (value_index == frame_end || columns[0]->is_null(value_index)) {
-            this->data(state).is_null = true;
+            if (value_index == peer_group_end || columns[0]->is_null(value_index)) {
+                this->data(state).is_null = true;
             } else {
                 const Column* data_column = ColumnHelper::get_data_column(columns[0]);
                 const InputColumnType* column = down_cast<const InputColumnType*>(data_column);
