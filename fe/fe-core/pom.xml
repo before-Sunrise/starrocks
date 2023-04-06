@@ -40,6 +40,7 @@ under the License.
         <jacoco.version>0.8.5</jacoco.version>
         <iceberg.version>1.1.0</iceberg.version>
         <awsv2.version>2.17.257</awsv2.version>
+        <lombok.version>1.18.26</lombok.version>
         <python>python</python>
     </properties>
 
@@ -752,6 +753,13 @@ under the License.
             <groupId>io.trino</groupId>
             <artifactId>trino-parser</artifactId>
             <version>385</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
