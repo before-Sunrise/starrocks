@@ -40,6 +40,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.starrocks.catalog.AggregateFunction;
 import com.starrocks.catalog.Function;
+import com.starrocks.catalog.FunctionSet;
 import com.starrocks.catalog.PrimitiveType;
 import com.starrocks.common.AnalysisException;
 import com.starrocks.sql.ast.AstVisitor;
@@ -49,6 +50,9 @@ import com.starrocks.thrift.TExprNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static com.starrocks.catalog.FunctionSet.STATISTIC_FUNCTIONS;
+import static com.starrocks.catalog.FunctionSet.VARIANCE_FUNCTIONS;
 
 /**
  * Representation of an analytic function call with OVER clause.
@@ -112,6 +116,7 @@ public class AnalyticExpr extends Expr {
                         AnalyticWindow window, String partitionHint) {
         this(fnCall, partitionExprs, orderByElements, window, partitionHint, NodePosition.ZERO);
     }
+
     public AnalyticExpr(FunctionCallExpr fnCall, List<Expr> partitionExprs, List<OrderByElement> orderByElements,
                         AnalyticWindow window, String partitionHint, NodePosition pos) {
         super(pos);

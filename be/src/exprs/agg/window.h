@@ -289,6 +289,7 @@ class PercentRankWindowFunction final : public WindowFunction<PercentRankState> 
                                               int64_t frame_end) const override {
         int64_t peer_group_count = peer_group_end - peer_group_start;
         auto& s = this->data(state);
+
         if (s.frame_start != peer_group_start) {
             s.frame_start = peer_group_start;
             s.rank += s.peer_group_count;
