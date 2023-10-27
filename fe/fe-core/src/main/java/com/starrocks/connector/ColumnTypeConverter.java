@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package com.starrocks.connector;
 
 import com.google.common.base.Preconditions;
@@ -62,6 +61,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.starrocks.catalog.ScalarType.DEFAULT_STRING_LENGTH;
 import static com.starrocks.catalog.ScalarType.MAX_VARCHAR_LENGTH;
 import static com.starrocks.catalog.Type.BIGINT;
 import static com.starrocks.catalog.Type.BOOLEAN;
@@ -160,7 +160,7 @@ public class ColumnTypeConverter {
                 } else {
                     return Type.UNKNOWN_TYPE;
                 }
-            case  "STRUCT":
+            case "STRUCT":
                 Type structType = fromHiveTypeToStructType(hiveType);
                 if (structType.isStructType()) {
                     return structType;
@@ -217,7 +217,8 @@ public class ColumnTypeConverter {
             throw new StarRocksConnectorException("Unsupported Hive type: %s. Supported CHAR types: CHAR(<=%d).",
                     type, HiveChar.MAX_CHAR_LENGTH);
         } else if (type.isVarchar()) {
-            if (type.getColumnSize() == -1 || type.getColumnSize() == MAX_VARCHAR_LENGTH) {
+            if (type.getColumnSize() == -1 || type.getColumnSize() == MAX_VARCHAR_LENGTH ||
+                    type.getColumnSize() == DEFAULT_STRING_LENGTH) {
                 return stringTypeInfo;
             }
             if (type.getColumnSize() <= HiveVarchar.MAX_VARCHAR_LENGTH) {
