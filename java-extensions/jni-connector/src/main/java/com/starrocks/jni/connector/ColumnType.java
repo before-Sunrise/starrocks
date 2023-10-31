@@ -191,7 +191,7 @@ public class ColumnType {
         if (scanner.s.startsWith("decimal")) {
             p = scanner.s.length();
         } else {
-            p = scanner.indexOf('<', ',', '>');
+            p = scanner.indexOf('<', ',', '>', '(', ')');
         }
         String t = scanner.substr(p);
         scanner.moveTo(p);
@@ -282,7 +282,8 @@ public class ColumnType {
     }
 
     public boolean isDecimal() {
-        return typeValue == TypeValue.DECIMALV2 || typeValue == TypeValue.DECIMAL32 || typeValue == TypeValue.DECIMAL64 ||
+        return typeValue == TypeValue.DECIMALV2 || typeValue == TypeValue.DECIMAL32 ||
+                typeValue == TypeValue.DECIMAL64 ||
                 typeValue == TypeValue.DECIMAL128;
     }
 
