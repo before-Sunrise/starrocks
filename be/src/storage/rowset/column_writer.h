@@ -80,6 +80,8 @@ struct ColumnWriterOptions {
     GlobalDictMap* global_dict = nullptr;
 
     bool need_flat = false;
+    // tablet index metadata
+    std::unordered_map<IndexType, TabletIndex> tablet_index;
 };
 
 class BitmapIndexWriter;

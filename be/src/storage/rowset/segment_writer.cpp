@@ -168,6 +168,8 @@ Status SegmentWriter::init(const std::vector<uint32_t>& column_indexes, bool has
         }
         opts.need_bloom_filter = column.is_bf_column();
         opts.need_bitmap_index = column.has_bitmap_index();
+        // maybe avoid copy is better？ because _tablet_schema‘s life cycle is the same as segment writer
+        RETURN_IF_ERROR(_tablet_schema->get_indexes_for_column(column.unique_id(), &opts.tablet_index));
         if (column.type() == LogicalType::TYPE_ARRAY) {
             if (opts.need_bloom_filter) {
                 return Status::NotSupported("Do not support bloom filter for array type");
