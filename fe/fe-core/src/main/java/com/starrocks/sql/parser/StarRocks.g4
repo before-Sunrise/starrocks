@@ -516,7 +516,7 @@ dropIndexStatement
     ;
 
 indexType
-    : USING (BITMAP | GIN)
+    : USING (BITMAP | GIN | NGRAMBF)
     ;
 
 showTableStatement

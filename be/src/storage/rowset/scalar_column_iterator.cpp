@@ -328,7 +328,7 @@ Status ScalarColumnIterator::get_row_ranges_by_bloom_filter(const std::vector<co
     RETURN_IF(!_reader->has_bloom_filter_index(), Status::OK());
     bool support = false;
     for (const auto* pred : predicates) {
-        support = support | pred->support_bloom_filter();
+        support = support || pred->support_bloom_filter() || pred->support_ngram_bloom_filter();
     }
     RETURN_IF(!support, Status::OK());
 
@@ -338,6 +338,7 @@ Status ScalarColumnIterator::get_row_ranges_by_bloom_filter(const std::vector<co
     opts.skip_fill_data_cache = _skip_fill_data_cache();
     opts.read_file = _opts.read_file;
     opts.stats = _opts.stats;
+    // filter data using bloom filter or ngram bloom filter
     RETURN_IF_ERROR(_reader->bloom_filter(predicates, row_ranges, opts));
     return Status::OK();
 }

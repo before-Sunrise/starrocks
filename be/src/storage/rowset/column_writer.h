@@ -76,6 +76,7 @@ struct ColumnWriterOptions {
     // when column data is encoding by dict
     // if global_dict is not nullptr, will checkout whether global_dict can cover all data
     GlobalDictMap* global_dict = nullptr;
+    std::unordered_map<IndexType, TabletIndex> tablet_index;
 };
 
 class BitmapIndexWriter;

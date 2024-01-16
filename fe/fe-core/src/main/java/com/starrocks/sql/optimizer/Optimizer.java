@@ -68,6 +68,7 @@ import com.starrocks.sql.optimizer.rule.transformation.pruner.PrimaryKeyUpdateTa
 import com.starrocks.sql.optimizer.rule.transformation.pruner.RboTablePruneRule;
 import com.starrocks.sql.optimizer.rule.transformation.pruner.UniquenessBasedTablePruneRule;
 import com.starrocks.sql.optimizer.rule.tree.AddDecodeNodeForDictStringRule;
+import com.starrocks.sql.optimizer.rule.tree.AddIndexOnlyPredicateRule;
 import com.starrocks.sql.optimizer.rule.tree.CloneDuplicateColRefRule;
 import com.starrocks.sql.optimizer.rule.tree.ExchangeSortToMergeRule;
 import com.starrocks.sql.optimizer.rule.tree.ExtractAggregateColumn;
@@ -748,6 +749,8 @@ public class Optimizer {
         if (rootTaskContext.getOptimizerContext().getSessionVariable().getEnableSubfieldNoCopy()) {
             result = new SubfieldExprNoCopyRule().rewrite(result, rootTaskContext);
         }
+
+        result = new AddIndexOnlyPredicateRule().rewrite(result, rootTaskContext);
 
         result.setPlanCount(planCount);
         return result;
