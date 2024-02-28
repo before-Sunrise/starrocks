@@ -114,6 +114,7 @@ set(EXPR_FILES
   hash_functions.cpp
   gin_functions.cpp
   ai_functions.cpp
+  fpe.cpp
 )
 
 if(STARROCKS_JIT_ENABLE)

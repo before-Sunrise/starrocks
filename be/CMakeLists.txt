@@ -522,6 +522,9 @@ set(STARROCKS_DEPENDENCIES
     icuuc
     icui18n
     icudata
+    gmp
+    unistring
+    ubiqfpe
     ${WL_END_GROUP}
 )
 

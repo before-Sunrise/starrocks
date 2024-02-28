@@ -1671,6 +1671,44 @@ build_flamegraph() {
     chmod +x $TP_INSTALL_DIR/flamegraph/*.pl
 }
 
+# libunistring 
+build_libunistring() {
+    check_if_source_exist $LIBUNISTRING_SOURCE
+    cd $TP_SOURCE_DIR/$LIBUNISTRING_SOURCE
+    ./configure --prefix=${TP_INSTALL_DIR} --disable-shared
+    make -j$PARALLEL
+    make install
+}
+
+# gmp
+build_gmp() {
+    check_if_source_exist $GMP_SOURCE
+    cd $TP_SOURCE_DIR/$GMP_SOURCE
+    export CFLAGS="-fPIC"
+    ./configure --enable-static --disable-shared --with-pic --prefix=${TP_INSTALL_DIR}
+    make -j$PARALLEL
+    make install
+}
+
+# libfpe
+build_libfpe() {
+    check_if_source_exist $LIBFPE_SOURCE
+    mkdir -p $TP_SOURCE_DIR/$LIBFPE_SOURCE/build
+    cd $TP_SOURCE_DIR/$LIBFPE_SOURCE/build
+    
+    export C_INCLUDE_PATH=$TP_INSTALL_DIR/include
+    export LIBRARY_PATH=$TP_INSTALL_DIR/lib
+    export LD_LIBRARY_PATH=$TP_INSTALL_DIR/lib
+
+    $CMAKE_CMD -DCMAKE_LIBRARY_PATH="$TP_INSTALL_DIR/lib;$TP_INSTALL_DIR/lib64" \
+        -DCMAKE_INCLUDE_PATH="$TP_INSTALL_DIR/include" \
+        -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${TP_INSTALL_DIR} ..
+
+    ${BUILD_SYSTEM} -j$PARALLEL
+    cp src/libubiqfpe.a $TP_INSTALL_DIR/lib
+    cp -r $TP_SOURCE_DIR/$LIBFPE_SOURCE/src/include/* $TP_INSTALL_DIR/include/
+}
+
 # restore cxxflags/cppflags/cflags to default one
 restore_compile_flags() {
     # c preprocessor flags
@@ -1778,6 +1816,9 @@ declare -a all_packages=(
     tenann
     xxhash
     pprof
+    libunistring
+    gmp
+    libfpe
 )
 
 # Machine specific packages
