@@ -443,4 +443,15 @@ TypeDescriptor TypeDescriptor::promote_types(const TypeDescriptor& type1, const 
     return TypeDescriptor::create_varchar_type(TypeDescriptor::MAX_VARCHAR_LENGTH);
 }
 
+TypeDescriptor TypeDescriptor::from_thrift(const TTypeDesc& t) {
+    int idx = 0;
+    TypeDescriptor result(t.types, &idx);
+    DCHECK_EQ(idx, t.types.size());
+
+    if (t.__isset.agg_state_type) {
+        result.agg_state_type = AggStateTypeDesc::from_thrift(t.agg_state_type);
+    }
+    return result;
+}
+
 } // namespace starrocks

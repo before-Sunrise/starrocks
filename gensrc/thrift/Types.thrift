@@ -142,6 +142,13 @@ struct TTypeNode {
     4: optional bool is_named
 }
 
+struct TAggStateTypeDesc {
+    1: optional list<TTypeDesc> arg_types
+    2: optional string agg_func_name
+    3: optional bool result_nullable
+    4: optional i32  func_version
+}
+
 // A flattened representation of a tree of column types obtained by depth-first
 // traversal. Complex types such as map, array and struct have child types corresponding
 // to the map key/value, array item type, and struct fields, respectively.
@@ -152,6 +159,7 @@ struct TTypeNode {
 // to TTypeDesc. In future, we merge these two to one
 struct TTypeDesc {
     1: list<TTypeNode> types
+    2: optional TAggStateTypeDesc agg_state_type
 }
 
 enum TAggregationType {
@@ -163,7 +171,8 @@ enum TAggregationType {
     NONE,
     BITMAP_UNION,
     REPLACE_IF_NOT_NULL,
-    PERCENTILE_UNION
+    PERCENTILE_UNION,
+    AGG_STATE_UNION
 }
 
 enum TPushType {

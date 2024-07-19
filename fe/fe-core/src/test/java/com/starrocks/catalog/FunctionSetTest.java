@@ -272,7 +272,7 @@ public class FunctionSetTest {
                         Lists.newArrayList(Type.ANY_ARRAY),
                         Lists.newArrayList(Type.ANY_ELEMENT, Type.ANY_ELEMENT, Type.BIGINT));
 
-        functionSet.addBuiltin(polymorphicTVF);
+        functionSet.addBuiltinScalarFunction(polymorphicTVF);
 
         Type[] argTypes = new Type[] {VARCHAR_ARRAY};
         Function desc = new Function(new FunctionName("three_column_tvf"), argTypes, Type.INVALID, false);
@@ -290,7 +290,7 @@ public class FunctionSetTest {
                 new TableFunction(new FunctionName("two_column_tvf"), Lists.newArrayList("a", "b"),
                         Lists.newArrayList(Type.ANY_ARRAY),
                         Lists.newArrayList(Type.BIGINT, Type.ANY_ELEMENT));
-        functionSet.addBuiltin(twoColumnTVF);
+        functionSet.addBuiltinScalarFunction(twoColumnTVF);
 
         argTypes = new Type[] {VARCHAR_ARRAY};
         desc = new Function(new FunctionName("two_column_tvf"), argTypes, Type.INVALID, false);

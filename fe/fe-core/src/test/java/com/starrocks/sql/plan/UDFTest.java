@@ -76,7 +76,7 @@ public class UDFTest extends PlanTestBase {
             List<Type> retTypes = new ArrayList<>();
             retTypes.add(Type.VARCHAR);
             final TableFunction tableFunction = new TableFunction(functionName, colNames, argTypes, retTypes);
-            functionSet.addBuiltin(tableFunction);
+            functionSet.addBuiltinScalarFunction(tableFunction);
         }
 
         String sql;

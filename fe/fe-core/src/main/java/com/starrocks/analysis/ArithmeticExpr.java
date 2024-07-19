@@ -114,30 +114,30 @@ public class ArithmeticExpr extends Expr {
 
     public static void initBuiltins(FunctionSet functionSet) {
         for (Type t : Type.getNumericTypes()) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.MULTIPLY.getName(), Lists.newArrayList(t, t), t));
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.ADD.getName(), Lists.newArrayList(t, t), t));
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.SUBTRACT.getName(), Lists.newArrayList(t, t), t));
         }
-        functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+        functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
                 Type.DOUBLE));
-        functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+        functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
                 Type.DECIMALV2));
-        functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+        functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DECIMAL32, Type.DECIMAL32),
                 Type.DECIMAL32));
-        functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+        functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DECIMAL64, Type.DECIMAL64),
                 Type.DECIMAL64));
-        functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+        functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                 Operator.DIVIDE.getName(),
                 Lists.<Type>newArrayList(Type.DECIMAL128, Type.DECIMAL128),
                 Type.DECIMAL128));
@@ -145,23 +145,23 @@ public class ArithmeticExpr extends Expr {
         // MOD(), FACTORIAL(), BITAND(), BITOR(), BITXOR(), and BITNOT() are registered as
         // builtins, see starrocks_functions.py
         for (Type t : Type.getIntegerTypes()) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.INT_DIVIDE.getName(), Lists.newArrayList(t, t), t));
         }
         for (Type t : Arrays.asList(Type.DECIMAL32, Type.DECIMAL64, Type.DECIMAL128)) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.INT_DIVIDE.getName(), Lists.newArrayList(t, t), Type.BIGINT));
         }
         for (Type t : Type.getIntegerTypes()) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.BIT_SHIFT_LEFT.getName(), Lists.newArrayList(t, Type.BIGINT), t));
         }
         for (Type t : Type.getIntegerTypes()) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.BIT_SHIFT_RIGHT.getName(), Lists.newArrayList(t, Type.BIGINT), t));
         }
         for (Type t : Type.getIntegerTypes()) {
-            functionSet.addBuiltin(ScalarFunction.createBuiltinOperator(
+            functionSet.addBuiltinScalarFunction(ScalarFunction.createBuiltinOperator(
                     Operator.BIT_SHIFT_RIGHT_LOGICAL.getName(), Lists.newArrayList(t, Type.BIGINT), t));
         }
     }
