@@ -243,6 +243,13 @@ void TabletColumn::init_from_pb(const ColumnPB& column) {
         sub_column.init_from_pb(column.children_columns(i));
         add_sub_column(std::move(sub_column));
     }
+    // agg state type info
+    if (column.has_agg_state_desc()) {
+        VLOG(2) << "column contains agg state type info, add into extra fields";
+        auto& agg_state_desc_pb = column.agg_state_desc();
+        ExtraFields* extra = _get_or_alloc_extra_fields();
+        extra->agg_state_desc = AggStateDesc::from_protobuf(agg_state_desc_pb);
+    }
 }
 
 void TabletColumn::init_from_thrift(const TColumn& tcolumn) {
@@ -279,6 +286,12 @@ void TabletColumn::to_schema_pb(ColumnPB* column) const {
     column->set_has_bitmap_index(has_bitmap_index());
     for (int i = 0; i < subcolumn_count(); i++) {
         subcolumn(i).to_schema_pb(column->add_children_columns());
+    }
+    if (has_agg_state_desc()) {
+        VLOG(2) << "to_schema_pb contains agg state type info, add into extra fields";
+        auto* agg_state_desc = get_agg_state_desc();
+        auto* agg_state_pb = column->mutable_agg_state_desc();
+        agg_state_desc->to_protobuf(agg_state_pb);
     }
 }
 

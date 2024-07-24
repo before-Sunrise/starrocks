@@ -15,15 +15,20 @@
 package com.starrocks.catalog.combinator;
 
 import com.starrocks.analysis.FunctionName;
-import com.starrocks.catalog.AggStateType;
 import com.starrocks.catalog.AggregateFunction;
 import com.starrocks.catalog.FunctionSet;
 import com.starrocks.catalog.ScalarFunction;
+import com.starrocks.catalog.Type;
+import com.starrocks.thrift.TFunctionBinaryType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.util.Objects;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
 public final class AggStateCombinator extends ScalarFunction  {
-    private final AggregateFunction aggFunc;
+    private static final Logger LOG = LogManager.getLogger(AggStateCombinator.class);
 
     /**
      * DEFINE immediate_type {agg_func}_state(arg_types)
@@ -31,13 +36,21 @@ public final class AggStateCombinator extends ScalarFunction  {
      *  input: agg function's arg types
      *  output: immediate_type with agg_state_type
      */
-    public AggStateCombinator(AggregateFunction aggFunc, AggStateType aggStateType) {
-        super(new FunctionName(aggFunc.functionName() + FunctionSet.AGG_STATE_SUFFIX),
-                aggStateType.getArgTypes(), aggStateType, false);
-        this.aggFunc = Objects.requireNonNull(aggFunc, "nested can not be null");
+    public AggStateCombinator(String funcName, List<Type> argTypes, Type intermediateType) {
+        super(new FunctionName(funcName + FunctionSet.AGG_STATE_SUFFIX), argTypes, intermediateType, false);
     }
 
-    public static AggStateCombinator of(AggregateFunction aggFunc) {
-        return new AggStateCombinator(aggFunc, new AggStateType(aggFunc));
+    public static Optional<ScalarFunction> of(AggregateFunction aggFunc) {
+        try {
+            Type intermediateType = aggFunc.getIntermediateType().withAggStateDescType(new AggStateDesc(aggFunc));
+            ScalarFunction aggStateFunc = new AggStateCombinator(aggFunc.functionName(), Arrays.asList(aggFunc.getArgs()),
+                    intermediateType);
+            aggStateFunc.setBinaryType(TFunctionBinaryType.BUILTIN);
+            LOG.info("Register agg state function: {}", aggStateFunc.functionName());
+            return Optional.of(aggStateFunc);
+        } catch (Exception e) {
+            LOG.warn("Failed to create AggStateCombinator for function: {}", aggFunc.functionName(), e);
+            return Optional.empty();
+        }
     }
 }

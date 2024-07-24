@@ -396,6 +396,9 @@ public:
 
     bool is_streaming_all_states() const { return _streaming_all_states; }
 
+    Status _create_aggregate_function(starrocks::RuntimeState* state, const TFunction& fn, bool is_result_nullable,
+                                      const AggregateFunction** ret);
+
     HashTableKeyAllocator _state_allocator;
 
 protected:
@@ -501,6 +504,8 @@ protected:
     SpillProcessChannelPtr _spill_channel;
     bool _is_opened = false;
     bool _is_prepared = false;
+
+    std::vector<AggregateFunctionPtr> _combinator_function;
 
 public:
     void build_hash_map(size_t chunk_size, bool agg_group_by_with_limit = false);

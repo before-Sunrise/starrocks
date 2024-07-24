@@ -43,6 +43,7 @@
 #include "gen_cpp/Descriptors_types.h"
 #include "gen_cpp/descriptors.pb.h"
 #include "gen_cpp/olap_file.pb.h"
+#include "runtime/agg_state_desc.h"
 #include "storage/aggregate_type.h"
 #include "storage/olap_define.h"
 #include "storage/tablet_index.h"
@@ -64,6 +65,7 @@ class TabletColumn {
         std::string default_value;
         std::vector<TabletColumn> sub_columns;
         bool has_default_value = false;
+        AggStateDescPtr agg_state_desc;
     };
 
 public:
@@ -157,6 +159,15 @@ public:
         ExtraFields* ext = _get_or_alloc_extra_fields();
         ext->has_default_value = true;
         ext->default_value = std::move(value);
+    }
+
+    bool has_agg_state_desc() const { return _extra_fields ? _extra_fields->agg_state_desc != nullptr : false; }
+    AggStateDesc* get_agg_state_desc() const {
+        VLOG(2) << "get_agg_state_desc:" << (has_agg_state_desc() ? "true" : "false");
+        if (!has_agg_state_desc()) {
+            return nullptr;
+        }
+        return _extra_fields->agg_state_desc.get();
     }
 
     void add_sub_column(const TabletColumn& sub_column);

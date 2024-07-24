@@ -18,19 +18,23 @@
 #include <utility>
 
 #include "column/column.h"
+#include "column/column_helper.h"
 #include "common/status.h"
-#include "exprs/agg_state_desc.h"
+#include "exprs/agg/aggregate.h"
 #include "exprs/function_context.h"
-#include "runtime/agg_state_type_desc.h"
+#include "runtime/agg_state_desc.h"
 
 namespace starrocks {
 
 class AggStateFunction {
 public:
-    AggStateFunction(TypeDescriptor return_type, AggStateTypeDescPtr agg_state_type) {
-        _agg_state_desc = std::make_shared<AggStateDesc>(agg_state_type, return_type);
+    AggStateFunction(AggStateDesc* agg_state_desc, TypeDescriptor immediate_type, bool has_nullable_child)
+            : _agg_state_desc(std::move(agg_state_desc)),
+              _immediate_type(std::move(immediate_type)),
+              _has_nullable_child(has_nullable_child) {
         DCHECK(_agg_state_desc != nullptr);
-        _function = _agg_state_desc->get_agg_function();
+        _function = AggStateDesc::get_agg_state_func(_agg_state_desc, _has_nullable_child);
+        DCHECK(_function != nullptr);
     }
 
     Status prepare(FunctionContext* context, FunctionContext::FunctionStateScope scope) {
@@ -46,15 +50,33 @@ public:
         if (columns.size() == 0) {
             return Status::InternalError("AggStateFunction execute columns is empty");
         }
-        auto result = _agg_state_desc->create_serialize_column();
-        auto chunk_size = columns[0]->size();
-        // ensure columns' nullable are expected
-        _function->convert_to_serialize_format(context, columns, chunk_size, &result);
+        if (columns.size() != 1) {
+            return Status::InternalError("Invalid AggStateFunction input columns size: " +
+                                         std::to_string(columns.size()));
+        }
+
+        auto column = columns[0];
+        if (!_has_nullable_child && column->is_nullable()) {
+            return Status::InternalError("AggStateFunction input column is nullable but agg function is not nullable");
+        }
+        // intermdiated column
+        auto result = ColumnHelper::create_column(_immediate_type, _has_nullable_child);
+        auto chunk_size = column->size();
+
+        if (_has_nullable_child && !column->is_nullable()) {
+            column = ColumnHelper::cast_to_nullable_column(column);
+            Columns new_columns = {column};
+            _function->convert_to_serialize_format(context, new_columns, chunk_size, &result);
+        } else {
+            _function->convert_to_serialize_format(context, columns, chunk_size, &result);
+        }
         return result;
     }
 
 private:
-    AggStateDescPtr _agg_state_desc;
+    AggStateDesc* _agg_state_desc;
+    TypeDescriptor _immediate_type;
+    bool _has_nullable_child;
     const AggregateFunction* _function;
 };
 using AggStateFunctionPtr = std::shared_ptr<starrocks::AggStateFunction>;

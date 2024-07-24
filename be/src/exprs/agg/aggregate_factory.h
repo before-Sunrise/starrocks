@@ -29,4 +29,8 @@ const AggregateFunction* get_window_function(const std::string& name, LogicalTyp
                                              TFunctionBinaryType::type binary_type = TFunctionBinaryType::BUILTIN,
                                              int func_version = 1);
 
+const AggregateFunction* get_aggregate_function(std::string agg_func_name, TypeDescriptor return_type,
+                                                std::vector<TypeDescriptor> arg_types, bool is_input_nullable,
+                                                TFunctionBinaryType::type binary_type, int func_version = 1);
+
 } // namespace starrocks

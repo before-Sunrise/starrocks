@@ -245,6 +245,7 @@ public class FunctionSet {
     // Aggregate functions:
     public static final String APPROX_COUNT_DISTINCT = "approx_count_distinct";
     public static final String APPROX_COUNT_DISTINCT_HLL_SKETCH = "approx_count_distinct_hll_sketch";
+    public static final String HLL_SKETCH_COUNT = "hll_sketch_count";
     public static final String APPROX_TOP_K = "approx_top_k";
     public static final String AVG = "avg";
     public static final String COUNT = "count";
@@ -609,6 +610,7 @@ public class FunctionSet {
                     .add(FunctionSet.UTC_TIMESTAMP)
                     .add(FunctionSet.MD5_SUM)
                     .add(FunctionSet.APPROX_COUNT_DISTINCT_HLL_SKETCH)
+                    .add(FunctionSet.HLL_SKETCH_COUNT)
                     .add(FunctionSet.MD5_SUM_NUMERIC)
                     .add(FunctionSet.BITMAP_EMPTY)
                     .add(FunctionSet.HLL_EMPTY)
@@ -954,10 +956,10 @@ public class FunctionSet {
     public void addBuiltinAggregateFunction(AggregateFunction aggFunc) {
         addBuiltInFunction(aggFunc);
         // register `_state` combinator
-        addBuiltInFunction(AggStateCombinator.of(aggFunc));
+        AggStateCombinator.of(aggFunc).stream().forEach(this::addBuiltInFunction);
         // register `_merge`/`_union` combinator for aggregate functions
-        addBuiltInFunction(AggStateUnionCombinator.of(aggFunc));
-        addBuiltInFunction(AggStateMergeCombinator.of(aggFunc));
+        AggStateUnionCombinator.of(aggFunc).stream().forEach(this::addBuiltInFunction);
+        AggStateMergeCombinator.of(aggFunc).stream().forEach(this::addBuiltInFunction);
     }
 
     // Populate all the aggregate builtins in the globalStateMgr.
@@ -1050,7 +1052,20 @@ public class FunctionSet {
             //APPROX_COUNT_DISTINCT_HLL_SKETCH
             //compute approx count distinct use DataSketches HyperLogLog
             addBuiltinAggregateFunction(AggregateFunction.createBuiltin(APPROX_COUNT_DISTINCT_HLL_SKETCH,
-                    Lists.newArrayList(t), Type.BIGINT, Type.VARCHAR,
+                    Lists.newArrayList(t), Type.BIGINT, Type.VARBINARY,
+                    true, false, true));
+
+            // hll_sketch_count(col)
+            addBuiltinAggregateFunction(AggregateFunction.createBuiltin(HLL_SKETCH_COUNT,
+                    Lists.newArrayList(t), Type.BIGINT, Type.VARBINARY,
+                    true, false, true));
+            // hll_sketch_count(col, log_k)
+            addBuiltinAggregateFunction(AggregateFunction.createBuiltin(HLL_SKETCH_COUNT,
+                    Lists.newArrayList(t, Type.INT), Type.BIGINT, Type.VARBINARY,
+                    true, false, true));
+            // hll_sketch_count(col, log_k, tgt_type)
+            addBuiltinAggregateFunction(AggregateFunction.createBuiltin(HLL_SKETCH_COUNT,
+                    Lists.newArrayList(t, Type.INT, Type.VARCHAR), Type.BIGINT, Type.VARBINARY,
                     true, false, true));
 
             // HLL_RAW

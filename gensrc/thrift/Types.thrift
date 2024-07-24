@@ -142,11 +142,13 @@ struct TTypeNode {
     4: optional bool is_named
 }
 
-struct TAggStateTypeDesc {
-    1: optional list<TTypeDesc> arg_types
-    2: optional string agg_func_name
-    3: optional bool result_nullable
-    4: optional i32  func_version
+struct TAggStateDesc {
+    1: optional string agg_func_name
+    2: optional list<TTypeDesc> arg_types
+    // TTypeDesc canot be used here, because it will cause circular dependency; use TTypeNode instead
+    3: list<TTypeNode> ret_types
+    4: optional bool result_nullable
+    5: optional i32 func_version
 }
 
 // A flattened representation of a tree of column types obtained by depth-first
@@ -159,7 +161,7 @@ struct TAggStateTypeDesc {
 // to TTypeDesc. In future, we merge these two to one
 struct TTypeDesc {
     1: list<TTypeNode> types
-    2: optional TAggStateTypeDesc agg_state_type
+    2: optional TAggStateDesc agg_state_desc
 }
 
 enum TAggregationType {

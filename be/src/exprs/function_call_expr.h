@@ -15,7 +15,6 @@
 #pragma once
 
 #include "common/object_pool.h"
-#include "exprs/agg_state_desc.h"
 #include "exprs/agg_state_function.h"
 #include "exprs/builtin_functions.h"
 #include "exprs/expr.h"
@@ -59,7 +58,7 @@ protected:
 private:
     const FunctionDescriptor* _get_function_by_fid(TFunction fn);
     const FunctionDescriptor* _get_function(TFunction fn, std::vector<TypeDescriptor> arg_types,
-                                            TypeDescriptor result_type);
+                                            TypeDescriptor result_type, bool has_nullable_child);
 
     const FunctionDescriptor* _fn_desc{nullptr};
 

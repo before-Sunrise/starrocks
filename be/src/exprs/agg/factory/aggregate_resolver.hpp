@@ -58,9 +58,6 @@ class AggregateFuncResolver {
     DECLARE_SINGLETON(AggregateFuncResolver);
 
 public:
-    const std::string AGG_STATE_UNION_SUFFIX = "_union";
-    const std::string AGG_STATE_MERGE_SUFFIX = "_merge";
-
     void register_avg();
     void register_bitmap();
     void register_minmaxany();
@@ -84,10 +81,6 @@ public:
     const AggregateFunction* get_aggregate_info(const std::string& name, const LogicalType arg_type,
                                                 const LogicalType return_type, const bool is_window_function,
                                                 const bool is_null) const {
-        // TODO: add more checks
-        // if (HasSuffixString(name, AGG_STATE_SUFFIX)) {
-        //     name = name.substr(0, name.length() - AGG_STATE_SUFFIX.length());
-        // }
         auto pair = _infos_mapping.find(std::make_tuple(name, arg_type, return_type, is_window_function, is_null));
         if (pair == _infos_mapping.end()) {
             return nullptr;

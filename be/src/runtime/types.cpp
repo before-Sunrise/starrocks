@@ -37,6 +37,7 @@
 #include <ostream>
 
 #include "gutil/strings/substitute.h"
+#include "runtime/agg_state_desc.h"
 #include "runtime/datetime_value.h"
 #include "runtime/string_value.h"
 #include "storage/types.h"
@@ -123,9 +124,7 @@ void TypeDescriptor::to_thrift(TTypeDesc* thrift_type) const {
         curr_node.__set_scalar_type(TScalarType());
         TScalarType& scalar_type = curr_node.scalar_type;
         scalar_type.__set_type(starrocks::to_thrift(type));
-        if (len != -1) {
-            scalar_type.__set_len(len);
-        }
+        scalar_type.__set_len(len);
         if (scale != -1) {
             scalar_type.__set_scale(scale);
         }
@@ -159,9 +158,7 @@ void TypeDescriptor::to_protobuf(PTypeDesc* proto_type) const {
         node->set_type(TTypeNodeType::SCALAR);
         PScalarType* scalar_type = node->mutable_scalar_type();
         scalar_type->set_type(starrocks::to_thrift(type));
-        if (len != -1) {
-            scalar_type->set_len(len);
-        }
+        scalar_type->set_len(len);
         if (scale != -1) {
             scalar_type->set_scale(scale);
         }
@@ -448,10 +445,17 @@ TypeDescriptor TypeDescriptor::from_thrift(const TTypeDesc& t) {
     TypeDescriptor result(t.types, &idx);
     DCHECK_EQ(idx, t.types.size());
 
-    if (t.__isset.agg_state_type) {
-        result.agg_state_type = AggStateTypeDesc::from_thrift(t.agg_state_type);
+    if (t.__isset.agg_state_desc) {
+        result.agg_state_desc = AggStateDesc::from_thrift(t.agg_state_desc);
     }
     return result;
+}
+
+TypeDescriptor TypeDescriptor::from_thrift(const std::vector<TTypeNode>& types) {
+    TTypeDesc t_type_desc;
+    t_type_desc.__isset.types = true;
+    t_type_desc.__set_types(types);
+    return TypeDescriptor::from_thrift(t_type_desc);
 }
 
 } // namespace starrocks

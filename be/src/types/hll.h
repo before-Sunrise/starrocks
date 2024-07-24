@@ -177,11 +177,13 @@ private:
     }
 };
 
-const static datasketches::target_hll_type HLL_TGT_TYPE = datasketches::HLL_6;
-
 class DataSketchesHll {
 public:
-    DataSketchesHll() = default;
+    static const datasketches::target_hll_type DEFAULT_HLL_TGT_TYPE = datasketches::HLL_6;
+
+    DataSketchesHll(uint8_t log_k, datasketches::target_hll_type tgt_type) {
+        this->_sketch = std::make_shared<datasketches::hll_sketch>(log_k, tgt_type);
+    }
 
     DataSketchesHll(const DataSketchesHll& other) : _sketch(other._sketch) {}
 
@@ -201,11 +203,33 @@ public:
         return *this;
     }
 
-    explicit DataSketchesHll(uint64_t hash_value) { this->_sketch.update(hash_value); }
+    explicit DataSketchesHll(uint64_t hash_value) { _sketch->update(hash_value); }
 
     explicit DataSketchesHll(const Slice& src);
 
     ~DataSketchesHll() = default;
+
+    /**
+     * Returns sketch's configured lg_k value.
+     * @return Configured lg_k value.
+     */
+    uint8_t get_lg_config_k() const {
+        if (UNLIKELY(_sketch == nullptr)) {
+            return DEFAULT_HLL_LOG_K;
+        }
+        return _sketch->get_lg_config_k();
+    }
+
+    /**
+     * Returns the sketch's target HLL mode (from #target_hll_type).
+     * @return The sketch's target HLL mode.
+     */
+    datasketches::target_hll_type get_target_type() const {
+        if (UNLIKELY(_sketch == nullptr)) {
+            return DEFAULT_HLL_TGT_TYPE;
+        }
+        return _sketch->get_target_type();
+    }
 
     // Add a hash value to this HLL value
     // NOTE: input must be a hash_value
@@ -227,13 +251,6 @@ public:
 
     int64_t estimate_cardinality() const;
 
-    static std::string empty() {
-        static DataSketchesHll hll;
-        std::string buf;
-        hll.serialize((uint8_t*)buf.c_str());
-        return buf;
-    }
-
     // No need to check is_valid for datasketches HLL,
     // return ture for compatibility.
     static bool is_valid(const Slice& slice);
@@ -244,10 +261,10 @@ public:
     uint64_t serialize_size() const;
 
     // common interface
-    void clear() { _sketch.reset(); }
+    void clear() { _sketch->reset(); }
 
 private:
-    datasketches::hll_sketch _sketch{HLL_LOG_K, HLL_TGT_TYPE};
+    std::shared_ptr<datasketches::hll_sketch> _sketch;
 };
 
 } // namespace starrocks

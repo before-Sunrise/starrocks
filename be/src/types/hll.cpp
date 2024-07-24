@@ -623,33 +623,56 @@ bool DataSketchesHll::is_valid(const Slice& slice) {
 }
 
 void DataSketchesHll::update(uint64_t hash_value) {
-    _sketch.update(hash_value);
+    _sketch->update(hash_value);
 }
 
 void DataSketchesHll::merge(const DataSketchesHll& other) {
-    datasketches::hll_union u(MAX_HLL_LOG_K);
-    u.update(_sketch);
-    u.update(other._sketch);
-    _sketch = u.get_result(HLL_TGT_TYPE);
+    // How to handle different lg_k and tgt_type?
+    if (_sketch == nullptr) {
+        _sketch = other._sketch;
+    } else {
+        /** 
+         * <p>This union operator does permit the unioning of sketches with different values of
+         * <i>lg_config_k</i>.  The user should be aware that the resulting accuracy of a sketch returned
+         * at the end of the unioning process will be a function of the smallest of <i>lg_max_k</i> and
+         * <i>lg_config_k</i> that the union operator has seen.
+         * <p>This union operator also permits unioning of any of the three different target hll_sketch
+         * types.
+         */
+        uint8_t log_k = std::max(get_lg_config_k(), other.get_lg_config_k());
+        datasketches::target_hll_type tgt_type = std::max(get_target_type(), other.get_target_type());
+
+        // TODO: Avoid to create a new sketch, and update the sketch in place.
+        datasketches::hll_union u(log_k);
+        u.update(*_sketch);
+        u.update(*other._sketch);
+
+        *_sketch = u.get_result(tgt_type);
+    }
 }
 
 size_t DataSketchesHll::max_serialized_size() const {
-    return _sketch.get_max_updatable_serialization_bytes(HLL_LOG_K, HLL_TGT_TYPE);
+    if (UNLIKELY(_sketch == nullptr)) {
+        return 0;
+    }
+    uint8_t log_k = get_lg_config_k();
+    datasketches::target_hll_type tgt_type = get_target_type();
+    return _sketch->get_max_updatable_serialization_bytes(log_k, tgt_type);
 }
 
 size_t DataSketchesHll::serialize_size() const {
-    return _sketch.get_compact_serialization_bytes();
+    return _sketch->get_compact_serialization_bytes();
 }
 
 size_t DataSketchesHll::serialize(uint8_t* dst) const {
-    auto serialize_compact = _sketch.serialize_compact();
+    auto serialize_compact = _sketch->serialize_compact();
     std::copy(serialize_compact.begin(), serialize_compact.end(), dst);
-    return _sketch.get_compact_serialization_bytes();
+    return _sketch->get_compact_serialization_bytes();
 }
 
 bool DataSketchesHll::deserialize(const Slice& slice) {
     // can be called only when _sketch is empty
-    DCHECK(_sketch.is_empty());
+    DCHECK(_sketch == nullptr);
 
     // check if input length is valid
     if (!is_valid(slice)) {
@@ -657,7 +680,8 @@ bool DataSketchesHll::deserialize(const Slice& slice) {
     }
 
     try {
-        _sketch = datasketches::hll_sketch::deserialize((uint8_t*)slice.data, slice.size);
+        _sketch = std::make_shared<datasketches::hll_sketch>(
+                datasketches::hll_sketch::deserialize((uint8_t*)slice.data, slice.size));
     } catch (std::logic_error& e) {
         LOG(WARNING) << "DataSketchesHll deserialize error: " << e.what();
         return false;
@@ -667,11 +691,11 @@ bool DataSketchesHll::deserialize(const Slice& slice) {
 }
 
 int64_t DataSketchesHll::estimate_cardinality() const {
-    return _sketch.get_estimate();
+    return _sketch->get_estimate();
 }
 
 std::string DataSketchesHll::to_string() const {
-    return _sketch.to_string();
+    return _sketch->to_string();
 }
 
 } // namespace starrocks

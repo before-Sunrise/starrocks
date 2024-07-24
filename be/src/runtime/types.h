@@ -40,12 +40,15 @@
 #include "common/logging.h"
 #include "gen_cpp/Types_types.h" // for TPrimitiveType
 #include "gen_cpp/types.pb.h"    // for PTypeDesc
-#include "runtime/agg_state_type_desc.h"
+#include "runtime/agg_state_desc.h"
 #include "thrift/protocol/TDebugProtocol.h"
 #include "types/constexpr.h"
 #include "types/logical_type.h"
 
 namespace starrocks {
+
+class AggStateDesc;
+using AggStateDescPtr = std::shared_ptr<AggStateDesc>;
 
 class TypeInfo;
 
@@ -80,7 +83,7 @@ struct TypeDescriptor {
     std::vector<std::string> field_names;
 
     /// @brief Only set if type contains extra type desc, eg: agg_state_desc for aggregate function combinator.
-    AggStateTypeDescPtr agg_state_type = nullptr;
+    AggStateDescPtr agg_state_desc = nullptr;
 
     TypeDescriptor() = default;
 
@@ -218,6 +221,7 @@ struct TypeDescriptor {
     }
 
     static TypeDescriptor from_thrift(const TTypeDesc& t);
+    static TypeDescriptor from_thrift(const std::vector<TTypeNode>& types);
 
     static TypeDescriptor from_storage_type_info(TypeInfo* type_info);
 
@@ -265,7 +269,7 @@ struct TypeDescriptor {
 
     bool operator!=(const TypeDescriptor& other) const { return !(*this == other); }
 
-    inline bool has_agg_state_type() const { return agg_state_type != nullptr; }
+    inline bool has_agg_state_desc() const { return agg_state_desc != nullptr; }
 
     TTypeDesc to_thrift() const {
         TTypeDesc thrift_type;

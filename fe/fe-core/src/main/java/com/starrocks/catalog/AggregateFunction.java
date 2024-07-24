@@ -136,12 +136,11 @@ public class AggregateFunction extends Function {
     public AggregateFunction(FunctionName fnName, List<Type> argTypes, Type retType, Type intermediateType,
                              boolean hasVarArgs, boolean isAnalyticFn) {
         super(fnName, argTypes, retType, hasVarArgs);
-        this.intermediateType =
-                (intermediateType != null && intermediateType.equals(retType)) ? null : intermediateType;
+        this.intermediateType = intermediateType;
         this.isAnalyticFn = isAnalyticFn;
-        ignoresDistinct = false;
-        isAggregateFn = true;
-        returnsNonNullOnEmpty = false;
+        this.ignoresDistinct = false;
+        this.isAggregateFn = true;
+        this.returnsNonNullOnEmpty = false;
     }
 
     public static AggregateFunction createBuiltin(String name,

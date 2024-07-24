@@ -151,8 +151,13 @@ public enum AggregateType {
     }
 
     public boolean checkCompatibility(Type type) {
-        return checkPrimitiveTypeCompatibility(this, type.getPrimitiveType()) ||
-                (this.isReplaceFamily() && type.isComplexType());
+        if (this == AGG_STATE_UNION) {
+            // agg_state_union is only compatible with agg state type
+            return type.isAggStateType();
+        } else {
+            return checkPrimitiveTypeCompatibility(this, type.getPrimitiveType()) ||
+                    (this.isReplaceFamily() && type.isComplexType());
+        }
     }
 
     public static Type extendedPrecision(Type type, boolean legacyCompatible) {

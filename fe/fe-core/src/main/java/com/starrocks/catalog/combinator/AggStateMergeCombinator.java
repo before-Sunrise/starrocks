@@ -16,14 +16,18 @@ package com.starrocks.catalog.combinator;
 
 import com.google.common.collect.ImmutableList;
 import com.starrocks.analysis.FunctionName;
-import com.starrocks.catalog.AggStateType;
 import com.starrocks.catalog.AggregateFunction;
 import com.starrocks.catalog.FunctionSet;
+import com.starrocks.catalog.Type;
+import com.starrocks.thrift.TFunctionBinaryType;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.util.Objects;
+import java.util.Optional;
 
 public class AggStateMergeCombinator extends AggregateFunction {
-    private final AggregateFunction aggFunc;
+    private static final Logger LOG = LogManager.getLogger(AggStateMergeCombinator.class);
+
 
     /**
      * Merge combinator for aggregate function to merge the agg state to return the final result of aggregate function.
@@ -34,13 +38,22 @@ public class AggStateMergeCombinator extends AggregateFunction {
      *  immediate: immediate_type with agg_state_type
      *  output: return_type
      */
-    public AggStateMergeCombinator(AggregateFunction aggFunc, AggStateType aggStateType) {
-        super(new FunctionName(aggFunc.functionName() + FunctionSet.AGG_STATE_MERGE_SUFFIX),
-                ImmutableList.of(aggStateType), aggStateType, aggFunc.getReturnType(), false);
-        this.aggFunc = Objects.requireNonNull(aggFunc, "nested can not be null");
+    public AggStateMergeCombinator(String funcName, Type intermediateType, Type returnType) {
+        super(new FunctionName(funcName + FunctionSet.AGG_STATE_MERGE_SUFFIX),
+                ImmutableList.of(intermediateType), returnType, intermediateType, false);
     }
 
-    public static AggStateMergeCombinator of(AggregateFunction aggFunc) {
-        return new AggStateMergeCombinator(aggFunc, new AggStateType(aggFunc));
+    public static Optional<AggregateFunction> of(AggregateFunction aggFunc) {
+        try {
+            Type imtermediateType = aggFunc.getIntermediateType().withAggStateDescType(new AggStateDesc(aggFunc));
+            AggregateFunction aggStateMergeFunc = new AggStateMergeCombinator(aggFunc.functionName(), imtermediateType,
+                    aggFunc.getReturnType());
+            aggStateMergeFunc.setBinaryType(TFunctionBinaryType.BUILTIN);
+            LOG.info("Register agg state function: {}", aggStateMergeFunc.functionName());
+            return Optional.of(aggStateMergeFunc);
+        } catch (Exception e) {
+            LOG.warn("Failed to create AggStateMergeCombinator for function: {}", aggFunc.functionName(), e);
+            return Optional.empty();
+        }
     }
 }

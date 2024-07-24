@@ -373,7 +373,7 @@ createTableStatement
 
 
 columnDesc
-    : identifier type charsetName? KEY? aggDescWithNullable?
+    : identifier type charsetName? KEY? aggDesc? columnNullable?
     (defaultDesc | AUTO_INCREMENT | generatedColumnDesc)?
     comment?
     ;
@@ -421,10 +421,6 @@ columnNullable
     | NOT NULL
     ;
 
-aggDescWithNullable
-    : aggDesc columnNullable?
-    ;
-
 typeWithNullable
     : type columnNullable?
     ;
@@ -438,7 +434,7 @@ aggDesc
     | BITMAP_UNION
     | PERCENTILE_UNION
     | REPLACE_IF_NOT_NULL
-    | AGG_STATE_UNION '<' qualifiedName '(' typeWithNullable (',' typeWithNullable)* ')' '>'
+    | AGG_STATE_UNION
     ;
 
 rollupDesc
@@ -2625,6 +2621,7 @@ type
     | arrayType
     | structType
     | mapType
+    | aggStateType
     ;
 
 arrayType
@@ -2633,6 +2630,10 @@ arrayType
 
 mapType
     : MAP '<' type ',' type '>'
+    ;
+
+aggStateType
+    : AGG_STATE '<' identifier '(' typeWithNullable (',' typeWithNullable)* ')' '>'
     ;
 
 subfieldDesc

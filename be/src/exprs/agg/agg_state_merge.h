@@ -14,19 +14,25 @@
 
 #pragma once
 
-#include "column/binary_column.h"
-#include "column/object_column.h"
-#include "column/type_traits.h"
 #include "column/vectorized_fwd.h"
 #include "exprs/agg/aggregate.h"
-#include "gutil/casts.h"
 
 namespace starrocks {
 struct AggStateMergeState {};
 
 class AggStateMerge final : public AggregateFunctionBatchHelper<AggStateMergeState, AggStateMerge> {
 public:
-    AggStateUnion(AggregateFunctionPtr nested_function) : _function(std::move(nested_function)) {}
+    AggStateMerge(const AggregateFunction* function) : _function(function) { DCHECK(_function != nullptr); }
+
+    void create(FunctionContext* ctx, AggDataPtr __restrict ptr) const override { _function->create(ctx, ptr); }
+
+    void destroy(FunctionContext* ctx, AggDataPtr __restrict ptr) const override { _function->destroy(ctx, ptr); }
+
+    size_t size() const override { return _function->size(); }
+
+    size_t alignof_size() const override { return _function->alignof_size(); }
+
+    bool is_pod_state() const override { return _function->is_pod_state(); }
 
     void reset(FunctionContext* ctx, const Columns& args, AggDataPtr state) const override {
         _function->reset(ctx, args, state);
@@ -34,44 +40,44 @@ public:
 
     void update(FunctionContext* ctx, const Column** columns, AggDataPtr __restrict state,
                 size_t row_num) const override {
-        DCHECK_EQ(1, columns.size());
+        VLOG(2) << "AggStateMerge::update, input:" << columns[0]->debug_string() << ", row_num:" << row_num;
         _function->merge(ctx, columns[0], state, row_num);
     }
 
     void merge(FunctionContext* ctx, const Column* column, AggDataPtr __restrict state, size_t row_num) const override {
+        VLOG(2) << "AggStateMerge::merge, input:" << column->debug_string() << ", row_num:" << row_num;
         _function->merge(ctx, column, state, row_num);
     }
 
     void get_values(FunctionContext* ctx, ConstAggDataPtr __restrict state, Column* dst, size_t start,
                     size_t end) const override {
         DCHECK_GT(end, start);
-        _function->finalize_to_column(ctx, state, to);
-        // TODO: repeat data into start + 1 to end
+        _function->get_values(ctx, state, dst, start, end);
     }
 
     void serialize_to_column([[maybe_unused]] FunctionContext* ctx, ConstAggDataPtr __restrict state,
                              Column* to) const override {
         _function->serialize_to_column(ctx, state, to);
+        VLOG(2) << "AggStateMerge::serialize_to_column, to:" << to->debug_string();
     }
 
-    void convert_to_serialize_format([[maybe_unused]] FunctionContext* ctx, const Columns& src, size_t chunk_size,
+    void convert_to_serialize_format([[maybe_unused]] FunctionContext* ctx, const Columns& srcs, size_t chunk_size,
                                      ColumnPtr* dst) const override {
-        DCHECK_EQ(1, src.size());
-        auto& src = src[0];
-        for (size_t i = 0; i < chunk_size; ++i) {
-            _dst->append(src, i);
-        }
+        DCHECK_EQ(1, srcs.size());
+        VLOG(2) << "AggStateMerge::convert_to_serialize_format, srcs:" << srcs[0]->debug_string();
+        *dst = srcs[0];
     }
 
     void finalize_to_column(FunctionContext* ctx __attribute__((unused)), ConstAggDataPtr __restrict state,
                             Column* to) const override {
         _function->finalize_to_column(ctx, state, to);
+        VLOG(2) << "AggStateMerge::finalize_to_column, to:" << to->debug_string();
     }
 
     std::string get_name() const override { return "agg_state_merge"; }
 
 private:
-    AggregateFunctionPtr _function;
+    const AggregateFunction* _function;
 };
 
 } // namespace starrocks

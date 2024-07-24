@@ -12,24 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package com.starrocks.catalog;
+package com.starrocks.catalog.combinator;
 
 import com.google.api.client.util.Lists;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.gson.annotations.SerializedName;
+import com.starrocks.catalog.AggregateFunction;
+import com.starrocks.catalog.Type;
 import com.starrocks.common.FeConstants;
-import com.starrocks.thrift.TAggStateTypeDesc;
+import com.starrocks.thrift.TAggStateDesc;
 import com.starrocks.thrift.TTypeDesc;
+import com.starrocks.thrift.TTypeNode;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * It's a wrapper for the result type with extra information for the aggregate function.
  */
-public class AggStateType extends Type {
+public class AggStateDesc {
 
     // argument types
     @SerializedName(value = "argTypes")
@@ -44,12 +47,12 @@ public class AggStateType extends Type {
     @SerializedName(value = "functionName")
     private String functionName;
 
-    public AggStateType(AggregateFunction aggFunc) {
-        this(aggFunc.functionName(), aggFunc.getIntermediateType(), Arrays.asList(aggFunc.getArgs()),
+    public AggStateDesc(AggregateFunction aggFunc) {
+        this(aggFunc.functionName(), aggFunc.getReturnType(), Arrays.asList(aggFunc.getArgs()),
                 aggFunc.isNullable());
     }
 
-    public AggStateType(String functionName,
+    public AggStateDesc(String functionName,
                         Type returnType,
                         List<Type> argTypes,
                         Boolean resultNullable) {
@@ -82,10 +85,10 @@ public class AggStateType extends Type {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof AggStateType)) {
+        if (!(o instanceof AggStateDesc)) {
             return false;
         }
-        AggStateType other = (AggStateType) o;
+        AggStateDesc other = (AggStateDesc) o;
         int subTypeNumber = argTypes.size();
         for (int i = 0; i < subTypeNumber; i++) {
             if (!argTypes.get(i).equals(other.argTypes.get(i))) {
@@ -95,20 +98,32 @@ public class AggStateType extends Type {
         return true;
     }
 
-    @Override
-    public String toSql(int depth) {
-        StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("AGG_STATE<").append(functionName).append("(");
-        for (int i = 0; i < argTypes.size(); i++) {
-            if (i > 0) {
-                stringBuilder.append(", ");
-            }
-            stringBuilder.append(argTypes.get(i).toSql());
+    public TAggStateDesc toThrift() {
+        // wrapper extra data type
+        TAggStateDesc tAggStateType = new TAggStateDesc();
+        tAggStateType.setAgg_func_name(functionName);
+        for (Type argType : argTypes) {
+            TTypeDesc tTypeDesc = new TTypeDesc();
+            tTypeDesc.setTypes(new ArrayList<TTypeNode>());
+            argType.toThrift(tTypeDesc);
+            tAggStateType.addToArg_types(tTypeDesc);
         }
-        stringBuilder.append(", result_nullable=");
-        stringBuilder.append(resultNullable);
-        stringBuilder.append(">");
-        return stringBuilder.toString();
+        tAggStateType.setResult_nullable(resultNullable);
+        tAggStateType.setFunc_version(FeConstants.AGG_FUNC_VERSION);
+
+        // ret type
+        TTypeDesc tTypeDesc = new TTypeDesc();
+        tTypeDesc.setTypes(new ArrayList<TTypeNode>());
+        returnType.toThrift(tTypeDesc);
+        for (TTypeNode tTypeNode : tTypeDesc.types) {
+            tAggStateType.addToRet_types(tTypeNode);
+        }
+        Preconditions.checkState(!tTypeDesc.types.isEmpty());
+        return tAggStateType;
+    }
+
+    public AggStateDesc clone() {
+        return new AggStateDesc(functionName, returnType.clone(), Lists.newArrayList(argTypes), resultNullable);
     }
 
     @Override
@@ -116,55 +131,7 @@ public class AggStateType extends Type {
         return toSql();
     }
 
-    @Override
-    protected String prettyPrint(int lpad) {
-        return Strings.repeat(" ", lpad) + toSql();
-    }
-
-    @Override
-    public void toThrift(TTypeDesc result) {
-        // normal
-        returnType.toThrift(result);
-        // wrapper extra data type
-        TAggStateTypeDesc tAggStateType = new TAggStateTypeDesc();
-        tAggStateType.setAgg_func_name(functionName);
-        for (int i = 0; i < argTypes.size(); i++) {
-            TTypeDesc tTypeDesc = new TTypeDesc();
-            argTypes.get(i).toThrift(tTypeDesc);
-            tAggStateType.addToArg_types(tTypeDesc);
-        }
-        tAggStateType.setResult_nullable(resultNullable);
-        tAggStateType.setFunc_version(FeConstants.AGG_FUNC_VERSION);
-    }
-
-    @Override
-    public boolean isFullyCompatible(Type other) {
-        return false;
-    }
-
-    @Override
-    public AggStateType clone() {
-        AggStateType clone = (AggStateType) super.clone();
-        clone.functionName = this.functionName;
-        clone.resultNullable = this.resultNullable;
-        clone.argTypes = Lists.newArrayList(this.argTypes);
-        return clone;
-    }
-
-    public String toMysqlDataTypeString() {
-        return "binary";
-    }
-
-    // This implementation is the same as BE schema_columns_scanner.cpp type_to_string
-    public String toMysqlColumnTypeString() {
-        return toSql();
-    }
-
-    @Override
-    protected String toTypeString(int depth) {
-        if (depth >= MAX_NESTING_DEPTH) {
-            return "agg_state<...>";
-        }
+    public String toSql() {
         StringBuilder sb = new StringBuilder();
         sb.append("AGG_STATE<").append(functionName).append("(");
         for (int i = 0; i < argTypes.size(); i++) {
@@ -173,9 +140,7 @@ public class AggStateType extends Type {
             }
             sb.append(argTypes.get(i).toSql());
         }
-        if (resultNullable) {
-            sb.append(" NULL");
-        }
+        sb.append(")");
         sb.append(">");
         return sb.toString();
     }
