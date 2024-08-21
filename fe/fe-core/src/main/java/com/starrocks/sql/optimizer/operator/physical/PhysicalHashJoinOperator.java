@@ -78,22 +78,6 @@ public class PhysicalHashJoinOperator extends PhysicalJoinOperator {
         return skewValues;
     }
 
-    public PhysicalHashJoinOperator getSkewJoinFriend() {
-        return skewJoinFriend;
-    }
-
-    public void setSkewJoinFriend(PhysicalHashJoinOperator skewJoinFriend) {
-        this.skewJoinFriend = skewJoinFriend;
-    }
-
-    public HashJoinNode getMySelfAsNode() {
-        return mySelfAsNode;
-    }
-
-    public void setMySelfAsNode(HashJoinNode mySelfAsNode) {
-        this.mySelfAsNode = mySelfAsNode;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {

@@ -145,7 +145,7 @@ public class SkewShuffleJoinEliminationRule implements TreeRewriteRule {
                 return visitChild(opt, requireEmptyForChild);
             }
 
-            // find skew columns, rewrite skew
+            // find skew columns, rewrite skew values if needed
             SkewColumnAndValues skewColumnAndValues = findSkewColumns(opt);
             ScalarOperator leftSkewColumn = skewColumnAndValues.skewColumns.first;
             ScalarOperator rightSkewColumn = skewColumnAndValues.skewColumns.second;
@@ -223,9 +223,6 @@ public class SkewShuffleJoinEliminationRule implements TreeRewriteRule {
                     originalShuffleJoinOperator.getJoinHint(), originalShuffleJoinOperator.getLimit(),
                     originalShuffleJoinOperator.getPredicate(), projectionOnJoin,
                     originalShuffleJoinOperator.getSkewColumn(), originalShuffleJoinOperator.getSkewValues());
-            // we have to let them know each other for runtimr filter
-            newBroadcastJoinOpt.setSkewJoinFriend(newShuffleJoinOpt);
-            newShuffleJoinOpt.setSkewJoinFriend(newBroadcastJoinOpt);
 
             LocalExchangerType localExchangerType =
                     parentRequireEmpty ? LocalExchangerType.DIRECT : LocalExchangerType.PASS_THROUGH;
