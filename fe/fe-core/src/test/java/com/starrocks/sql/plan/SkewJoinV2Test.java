@@ -36,7 +36,6 @@ public class SkewJoinV2Test extends PlanTestBase {
     public void testSkewJoinV2() throws Exception {
         String sql = "select v2, v5 from t0 join[skew|t0.v1(1,2)] t1 on v1 = v4 ";
         String sqlPlan = getVerboseExplain(sql);
-        System.out.println(sqlPlan);
         assertCContains(sqlPlan, "Input Partition: HYBRID_HASH_PARTITIONED\n" +
                 "  RESULT SINK");
         // this is a normal union, which means its local exchanger is PASS_THROUGH
@@ -101,6 +100,29 @@ public class SkewJoinV2Test extends PlanTestBase {
                 "\n" +
                 "  1:OlapScanNode\n" +
                 "     table: t1, rollup: t1");
+    }
+
+    @Test
+    public void testSkewJoinV2WithComplexPredicate() throws Exception {
+        String sql = "select v2, v5 from t0 join[skew|t0.v1(1,2)] t1 on abs(v1) = abs(v4) ";
+        String sqlPlan = getVerboseExplain(sql);
+        // if on predicate's input is not column from table, then split expr should use Project's output column like "7: abs"
+        assertCContains(sqlPlan, "SplitCastDataSink:\n" +
+                "  OutPut Partition: HASH_PARTITIONED: 7: abs\n" +
+                "  OutPut Exchange Id: 04\n" +
+                "  Split expr: (7: abs NOT IN (1, 2)) OR (7: abs IS NULL)\n" +
+                "  OutPut Partition: RANDOM\n" +
+                "  OutPut Exchange Id: 08\n" +
+                "  Split expr: 7: abs IN (1, 2)\n" +
+                "\n" +
+                "  1:Project\n" +
+                "  |  output columns:\n" +
+                "  |  2 <-> [2: v2, BIGINT, true]\n" +
+                "  |  7 <-> abs[([1: v1, BIGINT, true]); args: BIGINT; result: LARGEINT; args nullable: true; result nullable: true]\n" +
+                "  |  cardinality: 1\n" +
+                "  |  \n" +
+                "  0:OlapScanNode\n" +
+                "     table: t0, rollup: t0");
     }
 
     @Test

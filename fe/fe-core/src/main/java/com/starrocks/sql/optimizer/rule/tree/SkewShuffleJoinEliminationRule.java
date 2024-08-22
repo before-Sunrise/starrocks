@@ -480,7 +480,7 @@ public class SkewShuffleJoinEliminationRule implements TreeRewriteRule {
                 return scalarOperator;
             }
             Map<ColumnRefOperator, ScalarOperator> projectMap = projection.getAllMaps();
-            ReplaceColumnRefRewriter rewriter = new ReplaceColumnRefRewriter(projectMap);
+            ReplaceColumnRefRewriter rewriter = new ReplaceColumnRefRewriter(projectMap, true);
             return rewriter.rewrite(scalarOperator);
         }
 
