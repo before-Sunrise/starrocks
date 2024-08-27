@@ -111,7 +111,7 @@ import com.starrocks.planner.SchemaScanNode;
 import com.starrocks.planner.SelectNode;
 import com.starrocks.planner.SetOperationNode;
 import com.starrocks.planner.SortNode;
-import com.starrocks.planner.SplitPlanFragment;
+import com.starrocks.planner.SplitCastPlanFragment;
 import com.starrocks.planner.TableFunctionNode;
 import com.starrocks.planner.UnionNode;
 import com.starrocks.planner.stream.StreamAggNode;
@@ -151,6 +151,7 @@ import com.starrocks.sql.optimizer.operator.UKFKConstraints;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalAssertOneRowOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalCTEConsumeOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalCTEProduceOperator;
+import com.starrocks.sql.optimizer.operator.physical.PhysicalConcatenateOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalDecodeOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalDeltaLakeScanOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalDistributionOperator;
@@ -168,7 +169,6 @@ import com.starrocks.sql.optimizer.operator.physical.PhysicalJoinOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalKuduScanOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalLimitOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalMergeJoinOperator;
-import com.starrocks.sql.optimizer.operator.physical.PhysicalMergeOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalMetaScanOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalMysqlScanOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalOdpsScanOperator;
@@ -3750,7 +3750,7 @@ public class PlanFragmentBuilder {
             PlanFragment child = visit(optExpression.inputAt(0), context);
             int splitId = ((PhysicalSplitProduceOperator) optExpression.getOp()).getSplitId();
             context.getFragments().remove(child);
-            SplitPlanFragment splitProduce = new SplitPlanFragment(child);
+            SplitCastPlanFragment splitProduce = new SplitCastPlanFragment(child);
 
             context.getSplitProduceFragments().put(splitId, splitProduce);
             context.getFragments().add(splitProduce);
@@ -3763,8 +3763,8 @@ public class PlanFragmentBuilder {
             PhysicalSplitConsumeOperator consumerOperator = (PhysicalSplitConsumeOperator) optExpression.getOp();
             int splitId = consumerOperator.getSplitId();
 
-            SplitPlanFragment splitProduceFragment =
-                    (SplitPlanFragment) context.getSplitProduceFragments().get(splitId);
+            SplitCastPlanFragment splitProduceFragment =
+                    (SplitCastPlanFragment) context.getSplitProduceFragments().get(splitId);
             ExchangeNode exchangeNode = new ExchangeNode(context.getNextNodeId(),
                     splitProduceFragment.getPlanRoot(), consumerOperator.getDistributionSpec().getType());
 
@@ -3803,7 +3803,7 @@ public class PlanFragmentBuilder {
             PlanFragment leftChild = visit(optExpr.inputAt(0), context);
             PlanFragment rightChild = visit(optExpr.inputAt(1), context);
 
-            PhysicalMergeOperator mergeOperator = (PhysicalMergeOperator) optExpr.getOp();
+            PhysicalConcatenateOperator mergeOperator = (PhysicalConcatenateOperator) optExpr.getOp();
             TupleDescriptor mergeOperationTuple = context.getDescTbl().createTupleDescriptor();
 
             UnionNode setOperationNode = new UnionNode(context.getNextNodeId(), mergeOperationTuple.getId());

@@ -28,7 +28,7 @@ import com.starrocks.planner.PlanFragment;
 import com.starrocks.planner.PlanFragmentId;
 import com.starrocks.planner.ScanNode;
 import com.starrocks.planner.SplitCastDataSink;
-import com.starrocks.planner.SplitPlanFragment;
+import com.starrocks.planner.SplitCastPlanFragment;
 import com.starrocks.proto.PPlanFragmentCancelReason;
 import com.starrocks.qe.QueryStatisticsItem;
 import com.starrocks.qe.SimpleScheduler;
@@ -403,8 +403,8 @@ public class ExecutionDAG {
         if (execFragment.getPlanFragment() instanceof MultiCastPlanFragment) {
             connectMultiCastFragmentToDestFragments(execFragment,
                     (MultiCastPlanFragment) execFragment.getPlanFragment());
-        } else if (execFragment.getPlanFragment() instanceof SplitPlanFragment) {
-            connectSplitFragmentToDestFragments(execFragment, (SplitPlanFragment) execFragment.getPlanFragment());
+        } else if (execFragment.getPlanFragment() instanceof SplitCastPlanFragment) {
+            connectSplitFragmentToDestFragments(execFragment, (SplitCastPlanFragment) execFragment.getPlanFragment());
         } else {
             connectNormalFragmentToDestFragments(execFragment);
         }
@@ -547,7 +547,7 @@ public class ExecutionDAG {
         }
     }
 
-    private void connectSplitFragmentToDestFragments(ExecutionFragment execFragment, SplitPlanFragment fragment)
+    private void connectSplitFragmentToDestFragments(ExecutionFragment execFragment, SplitCastPlanFragment fragment)
             throws SchedulerException {
         Preconditions.checkState(fragment.getSink() instanceof SplitCastDataSink);
         SplitCastDataSink splitSink = (SplitCastDataSink) fragment.getSink();

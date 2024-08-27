@@ -32,11 +32,11 @@ import com.starrocks.sql.optimizer.operator.Operator;
 import com.starrocks.sql.optimizer.operator.OperatorType;
 import com.starrocks.sql.optimizer.operator.Projection;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalCTEAnchorOperator;
+import com.starrocks.sql.optimizer.operator.physical.PhysicalConcatenateOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalDistributionOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalHashAggregateOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalHashJoinOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalJoinOperator;
-import com.starrocks.sql.optimizer.operator.physical.PhysicalMergeOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalSplitConsumeOperator;
 import com.starrocks.sql.optimizer.operator.physical.PhysicalSplitProduceOperator;
 import com.starrocks.sql.optimizer.operator.scalar.BinaryPredicateOperator;
@@ -216,17 +216,17 @@ public class SkewShuffleJoinEliminationRule implements TreeRewriteRule {
                     originalShuffleJoinOperator.getJoinType(), originalShuffleJoinOperator.getOnPredicate(),
                     originalShuffleJoinOperator.getJoinHint(), originalShuffleJoinOperator.getLimit(),
                     originalShuffleJoinOperator.getPredicate(), projectionOnJoin,
-                    originalShuffleJoinOperator.getSkewColumn(), originalShuffleJoinOperator.getSkewValues());
+                    leftSkewColumn, skewValues);
 
             PhysicalHashJoinOperator newBroadcastJoinOpt = new PhysicalHashJoinOperator(
                     originalShuffleJoinOperator.getJoinType(), originalShuffleJoinOperator.getOnPredicate(),
                     originalShuffleJoinOperator.getJoinHint(), originalShuffleJoinOperator.getLimit(),
                     originalShuffleJoinOperator.getPredicate(), projectionOnJoin,
-                    originalShuffleJoinOperator.getSkewColumn(), originalShuffleJoinOperator.getSkewValues());
+                    leftSkewColumn, skewValues);
 
             LocalExchangerType localExchangerType =
                     parentRequireEmpty ? LocalExchangerType.DIRECT : LocalExchangerType.PASS_THROUGH;
-            PhysicalMergeOperator mergeOperator =
+            PhysicalConcatenateOperator mergeOperator =
                     buildMergeOperator(opt.getOutputColumns().getColumnRefOperators(columnRefFactory), 2,
                             localExchangerType, originalShuffleJoinOperator.getLimit());
 
@@ -398,13 +398,13 @@ public class SkewShuffleJoinEliminationRule implements TreeRewriteRule {
             return Objects.equals(operator.getDistributionSpec().getType(), expectedType);
         }
 
-        private PhysicalMergeOperator buildMergeOperator(List<ColumnRefOperator> outputColumns, int childNum,
-                                                         LocalExchangerType localExchangeType, long limit) {
+        private PhysicalConcatenateOperator buildMergeOperator(List<ColumnRefOperator> outputColumns, int childNum,
+                                                               LocalExchangerType localExchangeType, long limit) {
             List<List<ColumnRefOperator>> childOutputColumns = new ArrayList<>();
             for (int i = 0; i < childNum; i++) {
                 childOutputColumns.add(outputColumns);
             }
-            return new PhysicalMergeOperator(outputColumns, childOutputColumns, localExchangeType, limit);
+            return new PhysicalConcatenateOperator(outputColumns, childOutputColumns, localExchangeType, limit);
         }
 
         private SkewColumnAndValues findSkewColumns(OptExpression input) {

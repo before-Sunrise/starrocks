@@ -106,7 +106,7 @@ public enum OperatorType {
     PHYSICAL_TABLE_FUNCTION_TABLE_SCAN,
     PHYSICAL_SPLIT_PRODUCE,
     PHYSICAL_SPLIT_CONSUME,
-    PHYSICAL_MERGE,
+    PHYSICAL_CONCATENATE,
 
     /**
      * Scalar operator

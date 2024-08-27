@@ -22,8 +22,7 @@ import com.starrocks.thrift.TResultSinkType;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
-public class SplitPlanFragment extends PlanFragment {
+public class SplitCastPlanFragment extends PlanFragment {
     private final List<ExchangeNode> destNodeList = Lists.newArrayList();
     private final List<Expr> splitExprs = Lists.newArrayList();
 
@@ -37,7 +36,7 @@ public class SplitPlanFragment extends PlanFragment {
         return splitExprs;
     }
 
-    public SplitPlanFragment(PlanFragment planFragment) {
+    public SplitCastPlanFragment(PlanFragment planFragment) {
         super(planFragment.fragmentId, planFragment.planRoot, planFragment.getDataPartition());
         this.outputPartition = DataPartition.HYBRID_HASH_PARTITIONED;
         this.children.addAll(planFragment.getChildren());

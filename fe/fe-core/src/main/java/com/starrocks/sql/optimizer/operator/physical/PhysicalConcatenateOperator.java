@@ -25,13 +25,14 @@ import com.starrocks.sql.optimizer.operator.scalar.ColumnRefOperator;
 
 import java.util.List;
 
-public class PhysicalMergeOperator extends PhysicalSetOperation {
+public class PhysicalConcatenateOperator extends PhysicalSetOperation {
 
     private final LocalExchangerType localExchangeType;
 
-    public PhysicalMergeOperator(List<ColumnRefOperator> columnRef, List<List<ColumnRefOperator>> childOutputColumns,
-                                 LocalExchangerType localExchangeType, long limit) {
-        super(OperatorType.PHYSICAL_MERGE, columnRef, childOutputColumns, limit, null, null);
+    public PhysicalConcatenateOperator(List<ColumnRefOperator> columnRef,
+                                       List<List<ColumnRefOperator>> childOutputColumns,
+                                       LocalExchangerType localExchangeType, long limit) {
+        super(OperatorType.PHYSICAL_CONCATENATE, columnRef, childOutputColumns, limit, null, null);
         this.localExchangeType = localExchangeType;
     }
 
@@ -57,7 +58,7 @@ public class PhysicalMergeOperator extends PhysicalSetOperation {
             return false;
         }
 
-        PhysicalMergeOperator that = (PhysicalMergeOperator) o;
+        PhysicalConcatenateOperator that = (PhysicalConcatenateOperator) o;
         return localExchangeType == that.localExchangeType;
     }
 

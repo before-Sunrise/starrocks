@@ -118,7 +118,8 @@ public class SkewJoinV2Test extends PlanTestBase {
                 "  1:Project\n" +
                 "  |  output columns:\n" +
                 "  |  2 <-> [2: v2, BIGINT, true]\n" +
-                "  |  7 <-> abs[([1: v1, BIGINT, true]); args: BIGINT; result: LARGEINT; args nullable: true; result nullable: true]\n" +
+                "  |  7 <-> abs[([1: v1, BIGINT, true]); " +
+                "args: BIGINT; result: LARGEINT; args nullable: true; result nullable: true]\n" +
                 "  |  cardinality: 1\n" +
                 "  |  \n" +
                 "  0:OlapScanNode\n" +
