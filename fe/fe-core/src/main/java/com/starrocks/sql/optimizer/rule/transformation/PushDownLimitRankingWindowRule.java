@@ -89,9 +89,9 @@ public class PushDownLimitRankingWindowRule extends TransformationRule {
         ColumnRefOperator windowCol = Lists.newArrayList(windowOperator.getWindowCall().keySet()).get(0);
         CallOperator callOperator = windowOperator.getWindowCall().get(windowCol);
 
-        // TODO(hcf) we support dense_rank later
         if (!FunctionSet.ROW_NUMBER.equals(callOperator.getFnName()) &&
-                !FunctionSet.RANK.equals(callOperator.getFnName())) {
+                !FunctionSet.RANK.equals(callOperator.getFnName()) &&
+                !FunctionSet.DENSE_RANK.equals(callOperator.getFnName())) {
             return false;
         }
 
@@ -128,6 +128,11 @@ public class PushDownLimitRankingWindowRule extends TransformationRule {
                 .map(ScalarOperator::<ColumnRefOperator>cast)
                 .collect(Collectors.toList());
 
+        // partition columns are useless for sort
+        List<Ordering> orderByElements = windowOperator.getEnforceSortColumns().stream()
+                .filter(ordering -> !partitionByColumns.contains(ordering.getColumnRef()))
+                .collect(Collectors.toList());
+
         Ordering firstOrdering = topNOperator.getOrderByElements().get(0);
         if (!firstOrdering.isAscending()) {
             return Collections.emptyList();
@@ -148,7 +153,7 @@ public class PushDownLimitRankingWindowRule extends TransformationRule {
         OptExpression newTopNOptExp = OptExpression.create(new LogicalTopNOperator.Builder()
                 .setPartitionByColumns(partitionByColumns)
                 .setPartitionLimit(partitionLimit)
-                .setOrderByElements(windowOperator.getEnforceSortColumns())
+                .setOrderByElements(orderByElements)
                 .setLimit(limit)
                 .setTopNType(topNType)
                 .setSortPhase(sortPhase)

@@ -21,6 +21,7 @@ import com.starrocks.catalog.FunctionSet;
 import com.starrocks.sql.optimizer.OptExpression;
 import com.starrocks.sql.optimizer.OptimizerContext;
 import com.starrocks.sql.optimizer.Utils;
+import com.starrocks.sql.optimizer.base.Ordering;
 import com.starrocks.sql.optimizer.operator.Operator;
 import com.starrocks.sql.optimizer.operator.OperatorType;
 import com.starrocks.sql.optimizer.operator.SortPhase;
@@ -87,7 +88,6 @@ public class PushDownPredicateRankingWindowRule extends TransformationRule {
         ColumnRefOperator windowCol = Lists.newArrayList(windowOperator.getWindowCall().keySet()).get(0);
         CallOperator callOperator = windowOperator.getWindowCall().get(windowCol);
 
-        // TODO(hcf) we support dense_rank later
         if (!FunctionSet.ROW_NUMBER.equals(callOperator.getFnName()) &&
                 !FunctionSet.RANK.equals(callOperator.getFnName()) &&
                 !FunctionSet.DENSE_RANK.equals(callOperator.getFnName())) {
@@ -137,6 +137,11 @@ public class PushDownPredicateRankingWindowRule extends TransformationRule {
                 .map(ScalarOperator::<ColumnRefOperator>cast)
                 .collect(Collectors.toList());
 
+        // patition columns should not be included in orderByElements
+        List<Ordering> orderByElements = windowOperator.getEnforceSortColumns().stream()
+                .filter(ordering -> !partitionByColumns.contains(ordering.getColumnRef()))
+                .collect(Collectors.toList());
+
         TopNType topNType = TopNType.parse(callOperator.getFnName());
 
         // If partition by columns is not empty, then we cannot derive sort property from the SortNode
@@ -147,7 +152,7 @@ public class PushDownPredicateRankingWindowRule extends TransformationRule {
         OptExpression newTopNOptExp = OptExpression.create(new LogicalTopNOperator.Builder()
                 .setPartitionByColumns(partitionByColumns)
                 .setPartitionLimit(partitionLimit)
-                .setOrderByElements(windowOperator.getEnforceSortColumns())
+                .setOrderByElements(orderByElements)
                 .setLimit(limit)
                 .setTopNType(topNType)
                 .setSortPhase(sortPhase)
