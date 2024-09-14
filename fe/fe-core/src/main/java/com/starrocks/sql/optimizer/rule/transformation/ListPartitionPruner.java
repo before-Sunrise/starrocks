@@ -706,7 +706,11 @@ public class ListPartitionPruner implements PartitionPruner {
             Set<Long> partitions = partitionValueMap.get(literal);
             if (partitions != null) {
                 if (inPredicate.isNotIn()) {
-                    matches.removeAll(partitions);
+                    for (Long id : partitions) {
+                        if (listPartitionInfo.pruneById(id)) {
+                            matches.remove(id);
+                        }
+                    }
                 } else {
                     matches.addAll(partitions);
                 }
