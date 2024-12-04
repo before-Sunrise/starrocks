@@ -815,10 +815,11 @@ Status Analytor::_streaming_process_for_sliding_frame(RuntimeState* state) {
         // One iteration process one chunk, and a chunk may be processed more than once for window clause like
         // `ROWS BETWEEN N PRECEDING AND M FOLLOWING`.
         auto remain_size = _current_chunk_size() - _window_result_position();
+        int index = 0;
         _init_window_result_columns();
         _find_partition_end();
 
-        while (_current_row_position < _partition.end && remain_size > 0) {
+        while (_current_row_position < _partition.end && index < remain_size) {
             const FrameRange frame = _get_frame_range();
             const bool is_n_following_frame = _rows_end_offset > 0;
 
@@ -839,7 +840,7 @@ Status Analytor::_streaming_process_for_sliding_frame(RuntimeState* state) {
 
             _get_window_function_result(_window_result_position(), _window_result_position() + 1);
             _update_current_row_position(1);
-            remain_size--;
+            index++;
         }
 
         if (_partition.is_real && _current_row_position == _partition.end) {
