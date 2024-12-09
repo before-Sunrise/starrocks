@@ -29,6 +29,7 @@
 #include "exec/limited_pipeline_chunk_buffer.h"
 #include "exec/pipeline/operator.h"
 #include "exec/spill/spiller.hpp"
+#include "exprs/agg/agg_state_if.h"
 #include "exprs/agg/agg_state_merge.h"
 #include "exprs/agg/agg_state_union.h"
 #include "exprs/agg/aggregate_state_allocator.h"
@@ -47,6 +48,7 @@ static const std::unordered_set<std::string> ALWAYS_NULLABLE_RESULT_AGG_FUNCS = 
 
 static const std::string AGG_STATE_UNION_SUFFIX = "_union";
 static const std::string AGG_STATE_MERGE_SUFFIX = "_merge";
+static const std::string AGG_STATE_IF_SUFFIX = "_if";
 static const std::string FUNCTION_COUNT = "count";
 
 template <bool UseIntermediateAsOutput>
@@ -541,6 +543,17 @@ Status Aggregator::_create_aggregate_function(starrocks::RuntimeState* state, co
             auto union_agg_func = std::make_shared<AggStateUnion>(std::move(agg_state_desc), nested_func);
             *ret = union_agg_func.get();
             _combinator_function.emplace_back(std::move(union_agg_func));
+        } else if (nested_func_name + AGG_STATE_IF_SUFFIX == func_name) {
+            // aggregate _union combinator
+            auto* nested_func = AggStateDesc::get_agg_state_func(&agg_state_desc);
+            if (nested_func == nullptr) {
+                return Status::InternalError(
+                        strings::Substitute("if combinator function $0 fails to get the nested agg func: $1 ",
+                                            func_name, nested_func_name));
+            }
+            auto if_agg_func = std::make_shared<AggStateIf>(std::move(agg_state_desc), nested_func);
+            *ret = if_agg_func.get();
+            _combinator_function.emplace_back(std::move(if_agg_func));
         } else {
             return Status::InternalError(
                     strings::Substitute("Agg function combinator is not implemented: $0 ", func_name));
