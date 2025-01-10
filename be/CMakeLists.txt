@@ -610,11 +610,6 @@ endif()
 set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -fno-sized-deallocation")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    if (NOT ${MAKE_TEST} STREQUAL "ON")
-        # there are too many warnings reported by clang in be/test and it will take some time to fix.
-        # temporarily disable Werror in the unit test so that clang can compile.
-        set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Werror")
-    endif()
     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wno-unused-parameter -Wno-documentation -Wno-weak-vtables")
     # Turn on following warning as error explicitly
     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Werror=string-plus-int")
@@ -636,7 +631,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         # ignore warning from apache-orc
         set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wno-switch-default")
     endif ()
-    set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} --rtlib=compiler-rt")
+    set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} --rtlib=compiler-rt -DLIBCXX_USE_COMPILER_RT=YES -DLIBCXXABI_USE_COMPILER_RT=YES ")
 else ()
     if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "14.0.0")
         # ignore error from apache-orc
