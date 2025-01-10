@@ -96,6 +96,16 @@ count_zero(const T* data, size_t size) {
                                                _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + 12)), zero16))))
                                        << 12u));
     }
+#elif defined(__ARM_NEON) && defined(__aarch64__) && defined(__POPCNT__)
+    const T* end4 = data + (size / 4 * 4);
+    for (; data < end4; data += 4) {
+        uint32x4_t vdata = vld1q_u32(data);
+        // result[i] = vdata[i] == 0 ? 0xFF : 0x00
+        uint32x4_t result = vceqq_u32(vdata, vdupq_n_u32(0));
+        // result[i] = result[i] & 0x1
+        result = vandq_u32(result, vdupq_n_u32(1));
+        count += vaddvq_u32(result);
+    }
 #endif
 
     for (; data < end; ++data) {
