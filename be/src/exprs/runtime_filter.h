@@ -120,14 +120,13 @@ public:
         __m256i* const bucket = &reinterpret_cast<__m256i*>(_directory)[bucket_idx];
         _mm256_store_si256(bucket, _mm256_or_si256(*bucket, mask));
 #elif defined(__ARM_NEON)
-        uint32x4_t masks[2];
-        make_mask(hash >> _log_num_buckets, masks);
+        auto [masks_0, masks_1] = make_mask(hash >> _log_num_buckets);
 
         uint32x4_t directory_1 = vld1q_u32(&_directory[bucket_idx][0]);
         uint32x4_t directory_2 = vld1q_u32(&_directory[bucket_idx][4]);
 
-        directory_1 = vorrq_u32(directory_1, masks[0]);
-        directory_2 = vorrq_u32(directory_2, masks[1]);
+        directory_1 = vorrq_u32(directory_1, masks_0);
+        directory_2 = vorrq_u32(directory_2, masks_1);
 
         vst1q_u32(&_directory[bucket_idx][0], directory_1);
         vst1q_u32(&_directory[bucket_idx][4], directory_2);
@@ -155,14 +154,12 @@ public:
         // 'mask' is one. testc returns 1 if the result is 0 everywhere and returns 0 otherwise.
         return _mm256_testc_si256(bucket, mask);
 #elif defined(__ARM_NEON)
-        uint32x4_t masks[2];
-
+        auto [masks_0, masks_1] = make_mask(hash >> _log_num_buckets);
         uint32x4_t directory_1 = vld1q_u32(&_directory[bucket_idx][0]);
         uint32x4_t directory_2 = vld1q_u32(&_directory[bucket_idx][4]);
 
-        make_mask(hash >> _log_num_buckets, masks);
-        uint32x4_t out_1 = vbicq_u32(masks[0], directory_1);
-        uint32x4_t out_2 = vbicq_u32(masks[1], directory_2);
+        uint32x4_t out_1 = vbicq_u32(masks_0, directory_1);
+        uint32x4_t out_2 = vbicq_u32(masks_1, directory_2);
         out_1 = vorrq_u32(out_1, out_2);
         uint32x2_t low_1 = vget_low_u32(out_1);
         uint32x2_t high_1 = vget_high_u32(out_1);
@@ -208,7 +205,7 @@ private:
 
 #ifdef __ARM_NEON
     // For Neon version:
-    void make_mask(uint32_t key, uint32x4_t* masks) const noexcept {
+    std::pair<uint32x4_t, uint32x4_t> make_mask(uint32_t key) const noexcept {
         uint32x4_t hash_data_1 = vdupq_n_u32(key);
         uint32x4_t hash_data_2 = vdupq_n_u32(key);
 
@@ -225,8 +222,8 @@ private:
         hash_data_1 = vshrq_n_u32(hash_data_1, 27);
         hash_data_2 = vshrq_n_u32(hash_data_2, 27);
         const uint32x4_t ones = vdupq_n_u32(1);
-        masks[0] = vshlq_u32(ones, reinterpret_cast<int32x4_t>(hash_data_1));
-        masks[1] = vshlq_u32(ones, reinterpret_cast<int32x4_t>(hash_data_2));
+        return {vshlq_u32(ones, reinterpret_cast<int32x4_t>(hash_data_1)),
+                vshlq_u32(ones, reinterpret_cast<int32x4_t>(hash_data_2))};
     }
 #endif
 
