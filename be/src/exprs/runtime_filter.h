@@ -119,6 +119,18 @@ public:
         const __m256i mask = make_mask(hash >> _log_num_buckets);
         __m256i* const bucket = &reinterpret_cast<__m256i*>(_directory)[bucket_idx];
         _mm256_store_si256(bucket, _mm256_or_si256(*bucket, mask));
+#elif defined(__ARM_NEON)
+        uint32x4_t masks[2];
+        make_mask(hash >> _log_num_buckets, masks);
+
+        uint32x4_t directory_1 = vld1q_u32(&_directory[bucket_idx][0]);
+        uint32x4_t directory_2 = vld1q_u32(&_directory[bucket_idx][4]);
+
+        directory_1 = vorrq_u32(directory_1, masks[0]);
+        directory_2 = vorrq_u32(directory_2, masks[1]);
+
+        vst1q_u32(&_directory[bucket_idx][0], directory_1);
+        vst1q_u32(&_directory[bucket_idx][4], directory_2);
 #else
         uint32_t masks[BITS_SET_PER_BLOCK];
         make_mask(hash >> _log_num_buckets, masks);
@@ -197,16 +209,10 @@ private:
 #ifdef __ARM_NEON
     // For Neon version:
     void make_mask(uint32_t key, uint32x4_t* masks) const noexcept {
-        uint32x2_t salt_low = vcreate_u32((uint64_t)0x44974d9147b6137bull);  // SALT[1], SALT[0]
-        uint32x2_t salt_high = vcreate_u32((uint64_t)0xa2b7289d8824ad5bull); // SALT[3], SALT[2]
-        const uint32x4_t rehash_1 = vcombine_u32(salt_low, salt_high);
-
-        salt_low = vcreate_u32((uint64_t)0x2df1424b705495c7ull);  // SALT[5], SALT[4]
-        salt_high = vcreate_u32((uint64_t)0x5c6bfb319efc4947ull); // SALT[7], SALT[6]
-        const uint32x4_t rehash_2 = vcombine_u32(salt_low, salt_high);
-
         uint32x4_t hash_data_1 = vdupq_n_u32(key);
         uint32x4_t hash_data_2 = vdupq_n_u32(key);
+        static const uint32x4_t rehash_1 = vld1q_u32(&SALT[0]);
+        static const uint32x4_t rehash_2 = vld1q_u32(&SALT[4]);
         hash_data_1 = vmulq_u32(rehash_1, hash_data_1);
         hash_data_2 = vmulq_u32(rehash_2, hash_data_2);
         hash_data_1 = vshrq_n_u32(hash_data_1, 27);
@@ -604,8 +610,6 @@ public:
 
     CppType max_value() const { return _max; }
 
-    void set_left_close_interval(bool close_interval) { _left_close_interval = close_interval; }
-    void set_right_close_interval(bool close_interval) { _right_close_interval = close_interval; }
     bool left_close_interval() const { return _left_close_interval; }
     bool right_close_interval() const { return _right_close_interval; }
 
@@ -782,16 +786,8 @@ public:
     // [min_value, max_value] overlapped with [min, max]
     bool filter_zonemap_with_min_max(const CppType* min_value, const CppType* max_value) const {
         if (min_value == nullptr || max_value == nullptr) return false;
-        if (_left_close_interval) {
-            if (*max_value < _min) return true;
-        } else {
-            if (*max_value <= _min) return true;
-        }
-        if (_right_close_interval) {
-            if (*min_value > _max) return true;
-        } else {
-            if (*min_value >= _max) return true;
-        }
+        if (*max_value < _min) return true;
+        if (*min_value > _max) return true;
         return false;
     }
 
@@ -896,26 +892,8 @@ private:
     void _evaluate_min_max(const ContainerType& values, uint8_t* selection, size_t size) const {
         if constexpr (!IsSlice<CppType>) {
             const auto* data = values.data();
-            if (_left_close_interval) {
-                if (_right_close_interval) {
-                    for (size_t i = 0; i < size; i++) {
-                        selection[i] = (data[i] >= _min && data[i] <= _max);
-                    }
-                } else {
-                    for (size_t i = 0; i < size; i++) {
-                        selection[i] = (data[i] >= _min && data[i] < _max);
-                    }
-                }
-            } else {
-                if (_right_close_interval) {
-                    for (size_t i = 0; i < size; i++) {
-                        selection[i] = (data[i] > _min && data[i] <= _max);
-                    }
-                } else {
-                    for (size_t i = 0; i < size; i++) {
-                        selection[i] = (data[i] > _min && data[i] < _max);
-                    }
-                }
+            for (size_t i = 0; i < size; i++) {
+                selection[i] = (data[i] >= _min && data[i] <= _max);
             }
         } else {
             memset(selection, 0x1, size);
