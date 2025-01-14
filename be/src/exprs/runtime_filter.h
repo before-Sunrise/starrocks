@@ -211,8 +211,15 @@ private:
     void make_mask(uint32_t key, uint32x4_t* masks) const noexcept {
         uint32x4_t hash_data_1 = vdupq_n_u32(key);
         uint32x4_t hash_data_2 = vdupq_n_u32(key);
-        static const uint32x4_t rehash_1 = vld1q_u32(&SALT[0]);
-        static const uint32x4_t rehash_2 = vld1q_u32(&SALT[4]);
+
+        uint32x2_t salt_low = vcreate_u32((uint64_t)0x44974d9147b6137bull);  // SALT[1], SALT[0]
+        uint32x2_t salt_high = vcreate_u32((uint64_t)0xa2b7289d8824ad5bull); // SALT[3], SALT[2]
+        const uint32x4_t rehash_1 = vcombine_u32(salt_low, salt_high);
+
+        salt_low = vcreate_u32((uint64_t)0x2df1424b705495c7ull);  // SALT[5], SALT[4]
+        salt_high = vcreate_u32((uint64_t)0x5c6bfb319efc4947ull); // SALT[7], SALT[6]
+        const uint32x4_t rehash_2 = vcombine_u32(salt_low, salt_high);
+
         hash_data_1 = vmulq_u32(rehash_1, hash_data_1);
         hash_data_2 = vmulq_u32(rehash_2, hash_data_2);
         hash_data_1 = vshrq_n_u32(hash_data_1, 27);
