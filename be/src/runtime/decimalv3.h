@@ -255,17 +255,27 @@ public:
     }
 
     template <typename From, typename To>
-    static inline bool to_float(DecimalType<From> const& value, DecimalType<From> const& scale_factor,
-                                FloatType<To>* to_value) {
-        *to_value = static_cast<To>(static_cast<double>(value) / static_cast<double>(scale_factor));
-        return false;
-    }
+    struct ToFloatHelper {
+        static bool convert(DecimalType<From> const& value, DecimalType<From> const& scale_factor,
+                            FloatType<To>* to_value) {
+            *to_value = static_cast<To>(static_cast<double>(value) / static_cast<double>(scale_factor));
+            return false;
+        }
+    };
 
     template <typename To>
-    static inline bool to_float(DecimalType<int128_t> const& value, DecimalType<int128_t> const& scale_factor,
+    struct ToFloatHelper<__int128, To> {
+        static bool convert(DecimalType<__int128> const& value, DecimalType<__int128> const& scale_factor,
+                            FloatType<To>* to_value) {
+            *to_value = static_cast<To>(int128_to_double(value) / int128_to_double(scale_factor));
+            return false;
+        }
+    };
+
+    template <typename From, typename To>
+    static inline bool to_float(DecimalType<From> const& value, DecimalType<From> const& scale_factor,
                                 FloatType<To>* to_value) {
-        *to_value = static_cast<To>(int128_to_double(value) / int128_to_double(scale_factor));
-        return false;
+        return ToFloatHelper<From, To>::convert(value, scale_factor, to_value);
     }
 
     template <typename From, typename To, bool check_overflow>
