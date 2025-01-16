@@ -261,6 +261,13 @@ public:
         return false;
     }
 
+    template <typename To>
+    static inline bool to_float(DecimalType<int128_t> const& value, DecimalType<int128_t> const& scale_factor,
+                                FloatType<To>* to_value) {
+        *to_value = static_cast<To>(int128_to_double(value) / int128_to_double(scale_factor));
+        return false;
+    }
+
     template <typename From, typename To, bool check_overflow>
     static inline bool scale_down(DecimalType<From> const& value, DecimalType<From> const& scale_factor,
                                   IntegerType<To>* to_value) {
