@@ -263,69 +263,10 @@ public:
         }
     };
 
-    std::string int128_to_string(__int128 value) {
-        if (value == 0) {
-            return "0";
-        }
-
-        // 处理特殊情况 - 最小值
-        if (value == ((__int128)1 << 127)) {
-            return "-170141183460469231731687303715884105728";
-        }
-
-        char buf[64]; // 足够存储最大的128位整数
-        char* current = buf;
-
-        // 处理负数
-        bool is_negative = value < 0;
-        if (is_negative) {
-            *current++ = '-';
-            value = -value;
-        }
-
-        // 将数字分成多个部分处理，因为uint64_t最大值是18446744073709551615
-        const static uint64_t SEGMENT = 10000000000000000000ULL; // 10^19
-
-        uint64_t high = value / SEGMENT;
-        uint64_t low = value % SEGMENT;
-
-        if (high != 0) {
-            // 处理高位部分
-            uint64_t high_high = high / SEGMENT;
-            uint64_t high_low = high % SEGMENT;
-
-            if (high_high != 0) {
-                current += sprintf(current, "%" PRIu64, high_high);
-            }
-            if (high_high != 0 || high_low != 0) {
-                if (high_high != 0) {
-                    current += sprintf(current, "%019" PRIu64, high_low);
-                } else {
-                    current += sprintf(current, "%" PRIu64, high_low);
-                }
-            }
-            current += sprintf(current, "%019" PRIu64, low);
-        } else {
-            current += sprintf(current, "%" PRIu64, low);
-        }
-
-        return std::string(buf, current - buf);
-    }
-
     template <typename To>
     struct ToFloatHelper<__int128, To> {
         static bool convert(DecimalType<__int128> const& value, DecimalType<__int128> const& scale_factor,
                             FloatType<To>* to_value) {
-            if (std::abs(int128_to_double(value) - static_cast<To>(value)) > 1e-6) {
-                LOG(INFO) << "int128:" << int128_to_string(value) << ", expected result" << static_cast<To>(value)
-                          << " actual result:" << int128_to_double(value);
-            }
-
-            if (std::abs(int128_to_double(scale_factor) - static_cast<To>(scale_factor)) > 1e-6) {
-                LOG(INFO) << "int128:" << int128_to_string(scale_factor) << ", expected result"
-                          << static_cast<To>(scale_factor) << " actual result:" << int128_to_double(scale_factor);
-            }
-
             *to_value = static_cast<To>(int128_to_double(value) / int128_to_double(scale_factor));
             return false;
         }
