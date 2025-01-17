@@ -263,7 +263,7 @@ public:
         }
     };
 
-    std::string int128_to_string(__int128 value) {
+    static std::string int128_to_string(__int128 value) {
         if (value == 0) {
             return "0";
         }
