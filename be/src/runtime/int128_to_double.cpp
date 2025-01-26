@@ -13,6 +13,7 @@
 // limitations under the License.
 namespace starrocks {
 #include "runtime/int128_to_double.h"
+extern "C" {
 double __wrap___floattidf(__int128 a) {
     typedef double dst_t;
     typedef uint64_t dst_rep_t;
@@ -81,4 +82,5 @@ double __wrap___floattidf(__int128 a) {
     } rep = {.i = result};
     return rep.f;
 }
+」
 } // namespace starrocks
