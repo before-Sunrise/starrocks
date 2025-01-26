@@ -40,8 +40,8 @@ double __wrap___floattidf(__int128 a) {
     const __int128 s = srcIsSigned ? a >> (srcBits - 1) : 0;
 
     a = (usrc_t)(a ^ s) - s;
-    int sd = srcBits - starrocks::clz128(a); // number of significant digits
-    int e = sd - 1;                          // exponent
+    int sd = srcBits - clz128(a); // number of significant digits
+    int e = sd - 1;               // exponent
     if (sd > dstMantDig) {
         //  start:  0000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQxxxxxxxxxxxxxxxxxx
         //  finish: 000000000000000000000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQR
