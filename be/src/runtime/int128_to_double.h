@@ -13,5 +13,7 @@
 // limitations under the License.
 #include <runtime/integer_overflow_arithmetics.h>
 namespace starrocks {
+extern "C" {
 double __wrap___floattidf(__int128 a);
+}
 }
