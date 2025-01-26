@@ -82,5 +82,5 @@ double __wrap___floattidf(__int128 a) {
     } rep = {.i = result};
     return rep.f;
 }
-」
+}
 } // namespace starrocks
