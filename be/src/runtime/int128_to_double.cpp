@@ -11,9 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-namespace starrocks {
+
 #include "runtime/int128_to_double.h"
-extern "C" {
+
+#include <climits>
+#include <cstdint>
+
+#include "integer_overflow_arithmetics.h"
+namespace starrocks {
 double __wrap___floattidf(__int128 a) {
     typedef double dst_t;
     typedef uint64_t dst_rep_t;
@@ -35,8 +40,8 @@ double __wrap___floattidf(__int128 a) {
     const __int128 s = srcIsSigned ? a >> (srcBits - 1) : 0;
 
     a = (usrc_t)(a ^ s) - s;
-    int sd = srcBits - clz128(a); // number of significant digits
-    int e = sd - 1;               // exponent
+    int sd = srcBits - starrocks::clz128(a); // number of significant digits
+    int e = sd - 1;                          // exponent
     if (sd > dstMantDig) {
         //  start:  0000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQxxxxxxxxxxxxxxxxxx
         //  finish: 000000000000000000000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQR
@@ -81,6 +86,5 @@ double __wrap___floattidf(__int128 a) {
         dst_rep_t i;
     } rep = {.i = result};
     return rep.f;
-}
 }
 } // namespace starrocks
