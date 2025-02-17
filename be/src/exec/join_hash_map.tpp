@@ -58,18 +58,60 @@ void JoinBuildFunc<LT>::construct_hash_table(RuntimeState* state, JoinHashTableI
     if (table_items->key_columns[0]->is_nullable()) {
         auto* nullable_column = ColumnHelper::as_raw_column<NullableColumn>(table_items->key_columns[0]);
         auto& null_array = nullable_column->null_column()->get_data();
-        for (size_t i = 1; i < table_items->row_count + 1; i++) {
-            if (null_array[i] == 0) {
+        if (table_items->hash_table_deduplicate) {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
+                if (null_array[i] == 0) {
+                    uint32_t bucket_num =
+                            JoinHashMapHelper::calc_bucket_num<CppType>(data[i], table_items->bucket_size);
+                    bool alreadyExsit = false;
+                    size_t build_index = table_items->first[bucket_num];
+                    while (build_index != 0) {
+                        if (FixedSizeJoinProbeFunc<LT>::equal(data[i], data[build_index])) {
+                            alreadyExsit = true;
+                            break;
+                        }
+                        build_index = table_items->next[build_index];
+                    }
+                    if (!alreadyExsit) {
+                        table_items->next[i] = table_items->first[bucket_num];
+                        table_items->first[probe_state->buckets[i]] = i;
+                    }
+                }
+            }
+        } else {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
+                if (null_array[i] == 0) {
+                    uint32_t bucket_num =
+                            JoinHashMapHelper::calc_bucket_num<CppType>(data[i], table_items->bucket_size);
+                    table_items->next[i] = table_items->first[bucket_num];
+                    table_items->first[bucket_num] = i;
+                }
+            }
+        }
+    } else {
+        if (table_items->hash_table_deduplicate) {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
+                uint32_t bucket_num = JoinHashMapHelper::calc_bucket_num<CppType>(data[i], table_items->bucket_size);
+                bool alreadyExsit = false;
+                size_t build_index = table_items->first[bucket_num];
+                while (build_index != 0) {
+                    if (JoinProbeFunc<LT>::equal(data[i], data[build_index])) {
+                        alreadyExsit = true;
+                        break;
+                    }
+                    build_index = table_items->next[build_index];
+                }
+                if (!alreadyExsit) {
+                    table_items->next[i] = table_items->first[bucket_num];
+                    table_items->first[probe_state->buckets[i]] = i;
+                }
+            }
+        } else {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
                 uint32_t bucket_num = JoinHashMapHelper::calc_bucket_num<CppType>(data[i], table_items->bucket_size);
                 table_items->next[i] = table_items->first[bucket_num];
                 table_items->first[bucket_num] = i;
             }
-        }
-    } else {
-        for (size_t i = 1; i < table_items->row_count + 1; i++) {
-            uint32_t bucket_num = JoinHashMapHelper::calc_bucket_num<CppType>(data[i], table_items->bucket_size);
-            table_items->next[i] = table_items->first[bucket_num];
-            table_items->first[bucket_num] = i;
         }
     }
     table_items->calculate_ht_info(table_items->key_columns[0]->byte_size());
@@ -104,11 +146,25 @@ void DirectMappingJoinBuildFunc<LT>::construct_hash_table(RuntimeState* state, J
     if (table_items->key_columns[0]->is_nullable()) {
         auto* nullable_column = ColumnHelper::as_raw_column<NullableColumn>(table_items->key_columns[0]);
         auto& null_array = nullable_column->null_column()->get_data();
-        for (size_t i = 1; i < table_items->row_count + 1; i++) {
-            if (null_array[i] == 0) {
-                size_t buckets = data[i] - MIN_VALUE;
-                table_items->next[i] = table_items->first[buckets];
-                table_items->first[buckets] = i;
+        if (table_items->hash_table_deduplicate) {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
+                if (null_array[i] == 0) {
+                    size_t buckets = data[i] - MIN_VALUE;
+                    size_t build_index = table_items->first[buckets];
+                    // only insert when this bucket is empty
+                    if (build_index == 0) {
+                        table_items->next[i] = table_items->first[buckets];
+                        table_items->first[buckets] = i;
+                    }
+                }
+            }
+        } else {
+            for (size_t i = 1; i < table_items->row_count + 1; i++) {
+                if (null_array[i] == 0) {
+                    size_t buckets = data[i] - MIN_VALUE;
+                    table_items->next[i] = table_items->first[buckets];
+                    table_items->first[buckets] = i;
+                }
             }
         }
     } else {
@@ -179,10 +235,27 @@ void FixedSizeJoinBuildFunc<LT>::_build_columns(JoinHashTableItems* table_items,
 
     const auto& data = get_key_data(*table_items);
     JoinHashMapHelper::calc_bucket_nums<CppType>(data, table_items->bucket_size, &probe_state->buckets, start, count);
-
-    for (uint32_t i = 0; i < count; i++) {
-        table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
-        table_items->first[probe_state->buckets[i]] = start + i;
+    if (table_items->hash_table_deduplicate) {
+        for (uint32_t i = 0; i < count; i++) {
+            bool alreadyExsit = false;
+            size_t build_index = table_items->first[probe_state->buckets[i]];
+            while (build_index != 0) {
+                if (FixedSizeJoinProbeFunc<LT>::equal(data[start + i], data[build_index])) {
+                    alreadyExsit = true;
+                    break;
+                }
+                build_index = table_items->next[build_index];
+            }
+            if (!alreadyExsit) {
+                table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+                table_items->first[probe_state->buckets[i]] = start + i;
+            }
+        }
+    } else {
+        for (uint32_t i = 0; i < count; i++) {
+            table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+            table_items->first[probe_state->buckets[i]] = start + i;
+        }
     }
 }
 
@@ -205,10 +278,30 @@ void FixedSizeJoinBuildFunc<LT>::_build_nullable_columns(JoinHashTableItems* tab
     const auto& data = get_key_data(*table_items);
     JoinHashMapHelper::calc_bucket_nums<CppType>(data, table_items->bucket_size, &probe_state->buckets, start, count);
 
-    for (size_t i = 0; i < count; i++) {
-        if (probe_state->is_nulls[i] == 0) {
-            table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
-            table_items->first[probe_state->buckets[i]] = start + i;
+    if (table_items->hash_table_deduplicate) {
+        for (size_t i = 0; i < count; i++) {
+            if (probe_state->is_nulls[i] == 0) {
+                bool alreadyExsit = false;
+                size_t build_index = table_items->first[probe_state->buckets[i]];
+                while (build_index != 0) {
+                    if (FixedSizeJoinProbeFunc<LT>::equal(data[start + i], data[build_index])) {
+                        alreadyExsit = true;
+                        break;
+                    }
+                    build_index = table_items->next[build_index];
+                }
+                if (!alreadyExsit) {
+                    table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+                    table_items->first[probe_state->buckets[i]] = start + i;
+                }
+            }
+        }
+    } else {
+        for (size_t i = 0; i < count; i++) {
+            if (probe_state->is_nulls[i] == 0) {
+                table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+                table_items->first[probe_state->buckets[i]] = start + i;
+            }
         }
     }
 }

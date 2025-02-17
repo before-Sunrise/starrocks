@@ -132,6 +132,7 @@ struct JoinHashTableItems {
     bool cache_miss_serious = false;
     bool mor_reader_mode = false;
     bool enable_late_materialization = false;
+    bool hash_table_deduplicate = false;
 
     float get_keys_per_bucket() const { return keys_per_bucket; }
     bool ht_cache_miss_serious() const { return cache_miss_serious; }

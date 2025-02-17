@@ -142,9 +142,28 @@ void SerializedJoinBuildFunc::_build_columns(JoinHashTableItems* table_items, Ha
         *ptr += table_items->build_slice[start + i].size;
     }
 
-    for (size_t i = 0; i < count; i++) {
-        table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
-        table_items->first[probe_state->buckets[i]] = start + i;
+    if (table_items->hash_table_deduplicate) {
+        for (size_t i = 0; i < count; i++) {
+            bool alreadyExsit = false;
+            size_t build_index = table_items->first[probe_state->buckets[i]];
+            while (build_index != 0) {
+                if (SerializedJoinProbeFunc::equal(table_items->build_slice[start + i],
+                                                   table_items->build_slice[build_index])) {
+                    alreadyExsit = true;
+                    break;
+                }
+                build_index = table_items->next[build_index];
+            }
+            if (!alreadyExsit) {
+                table_items->next[i] = table_items->first[probe_state->buckets[i]];
+                table_items->first[probe_state->buckets[i]] = i;
+            }
+        }
+    } else {
+        for (size_t i = 0; i < count; i++) {
+            table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+            table_items->first[probe_state->buckets[i]] = start + i;
+        }
     }
 }
 
@@ -169,10 +188,31 @@ void SerializedJoinBuildFunc::_build_nullable_columns(JoinHashTableItems* table_
         }
     }
 
-    for (size_t i = 0; i < count; i++) {
-        if (probe_state->is_nulls[i] == 0) {
-            table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
-            table_items->first[probe_state->buckets[i]] = start + i;
+    if (table_items->hash_table_deduplicate) {
+        for (size_t i = 0; i < count; i++) {
+            if (probe_state->is_nulls[i] == 0) {
+                bool alreadyExsit = false;
+                size_t build_index = table_items->first[probe_state->buckets[i]];
+                while (build_index != 0) {
+                    if (SerializedJoinProbeFunc::equal(table_items->build_slice[start + i],
+                                                       table_items->build_slice[build_index])) {
+                        alreadyExsit = true;
+                        break;
+                    }
+                    build_index = table_items->next[build_index];
+                }
+                if (!alreadyExsit) {
+                    table_items->next[i] = table_items->first[probe_state->buckets[i]];
+                    table_items->first[probe_state->buckets[i]] = i;
+                }
+            }
+        }
+    } else {
+        for (size_t i = 0; i < count; i++) {
+            if (probe_state->is_nulls[i] == 0) {
+                table_items->next[start + i] = table_items->first[probe_state->buckets[i]];
+                table_items->first[probe_state->buckets[i]] = start + i;
+            }
         }
     }
 }
@@ -354,6 +394,13 @@ void JoinHashTable::create(const HashTableParam& param) {
     } else if (_table_items->join_type == TJoinOp::FULL_OUTER_JOIN) {
         _table_items->left_to_nullable = true;
         _table_items->right_to_nullable = true;
+    }
+
+    if (_table_items->join_type == TJoinOp::LEFT_SEMI_JOIN || _table_items->join_type == TJoinOp::LEFT_ANTI_JOIN ||
+        _table_items->join_type == TJoinOp::NULL_AWARE_LEFT_ANTI_JOIN) {
+        if (config::enable_left_semi_anti_deduplicate) {
+            _table_items->hash_table_deduplicate = true;
+        }
     }
     _table_items->join_keys = param.join_keys;
 
