@@ -982,13 +982,10 @@ public class DefaultCoordinator extends Coordinator {
             // if this query is a block query do not cancel.
             long numLimitRows = executionDAG.getRootFragment().getPlanFragment().getPlanRoot().getLimit();
             boolean hasLimit = numLimitRows > 0;
-            if (!jobSpec.isBlockQuery() && executionDAG.getInstanceIds().size() > 1) {
-                if (hasLimit && numReceivedRows >= numLimitRows) {
-                    LOG.debug("no block query, return num >= limit rows, need cancel");
-                    cancelInternal(PPlanFragmentCancelReason.LIMIT_REACH);
-                } else {
-                    cancelInternal(PPlanFragmentCancelReason.QUERY_FINISHED);
-                }
+            if (!jobSpec.isBlockQuery() && executionDAG.getInstanceIds().size() > 1 && hasLimit &&
+                    numReceivedRows >= numLimitRows) {
+                LOG.debug("no block query, return num >= limit rows, need cancel");
+                cancelInternal(PPlanFragmentCancelReason.LIMIT_REACH);
             }
         } else {
             numReceivedRows += resultBatch.getBatch().getRowsSize();
@@ -1029,14 +1026,9 @@ public class DefaultCoordinator extends Coordinator {
         }
     }
 
-    private boolean isInternalCancel(PPlanFragmentCancelReason cancelReason) {
-        return cancelReason.equals(PPlanFragmentCancelReason.LIMIT_REACH) ||
-                cancelReason.equals(PPlanFragmentCancelReason.QUERY_FINISHED);
-    }
-
     private void cancelInternal(PPlanFragmentCancelReason cancelReason) {
         jobSpec.getSlotProvider().cancelSlotRequirement(slot);
-        if (!isInternalCancel(cancelReason) && StringUtils.isEmpty(connectContext.getState().getErrorMessage())) {
+        if (StringUtils.isEmpty(connectContext.getState().getErrorMessage())) {
             connectContext.getState().setError(cancelReason.toString());
         }
         if (null != receiver) {
@@ -1047,7 +1039,7 @@ public class DefaultCoordinator extends Coordinator {
         } else {
             cancelRemoteFragmentsAsync(cancelReason);
         }
-        if (!isInternalCancel(cancelReason)) {
+        if (cancelReason != PPlanFragmentCancelReason.LIMIT_REACH) {
             // count down to zero to notify all objects waiting for this
             if (!connectContext.isProfileEnabled()) {
                 queryProfile.finishAllInstances(Status.OK);
