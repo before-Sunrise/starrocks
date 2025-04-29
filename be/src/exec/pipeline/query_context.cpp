@@ -234,7 +234,12 @@ std::shared_ptr<QueryStatistics> QueryContext::intermediate_query_statistic() {
         return nullptr;
     }
 
-    query_statistic->add_cpu_costs(_delta_cpu_cost_ns.exchange(0));
+    // query_statistic->add_cpu_costs(_delta_cpu_cost_ns.exchange(0));
+    auto cpu = _delta_cpu_cost_ns.exchange(0);
+    LOG(INFO) << "[" << query_id() << "]:"
+              << " QueryContext::intermediate_query_statistic cpucost " << cpu;
+    query_statistic->add_cpu_costs(cpu);
+    query_statistic->add_mem_costs(mem_cost_bytes());
     query_statistic->add_mem_costs(mem_cost_bytes());
     {
         std::lock_guard l(_scan_stats_lock);
