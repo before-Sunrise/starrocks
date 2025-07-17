@@ -298,7 +298,7 @@ Status BinaryDictPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal
     }
     _vec_code_buf->resize(0);
     _vec_code_buf->reserve(*count);
-    size_t read_count = 0;
+    size_t read_count = *count;
     RETURN_IF_ERROR(
             _data_page_decoder->read_by_rowids(first_ordinal_in_page, rowids, &read_count, _vec_code_buf.get()));
     DCHECK_EQ(_vec_code_buf->size(), read_count);
