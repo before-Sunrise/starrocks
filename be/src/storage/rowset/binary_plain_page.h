@@ -229,6 +229,8 @@ public:
 
     bool append_range(uint32_t idx, uint32_t end, Column* dst) const;
 
+    Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count, Column* column) override;
+
     uint32_t count() const override {
         DCHECK(_parsed);
         return _num_elems;
