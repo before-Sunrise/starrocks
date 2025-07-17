@@ -180,6 +180,42 @@ void BinaryPlainPageDecoder<Type>::batch_string_at_index(Slice* dst, const int32
     }
 }
 
+template <LogicalType Type>
+Status BinaryPlainPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids,
+                                                    size_t* count, Column* column) {
+    DCHECK(_parsed);
+    if (PREDICT_FALSE(*count == 0)) {
+        return Status::OK();
+    }
+    size_t total = *count;
+    std::vector<Slice> slices;
+    slices.reserve(total);
+    if constexpr (Type == TYPE_CHAR) {
+        for (size_t i = 0; i < total; i++) {
+            ordinal_t ord = rowids[i] - first_ordinal_in_page;
+            if (UNLIKELY(ord >= _num_elems)) {
+                break;
+            }
+            Slice element = string_at_index(ord);
+            element.size = strnlen(element.data, element.size);
+            slices.emplace_back(element);
+        }
+    } else {
+        for (size_t i = 0; i < total; i++) {
+            ordinal_t ord = rowids[i] - first_ordinal_in_page;
+            if (UNLIKELY(ord >= _num_elems)) {
+                break;
+            }
+            slices.emplace_back(string_at_index(ord));
+        }
+    }
+    if (column->append_strings(slices)) {
+        *count = slices.size();
+        return Status::OK();
+    }
+    return Status::InvalidArgument("Column::append_strings() not supported");
+}
+
 template class BinaryPlainPageDecoder<TYPE_CHAR>;
 template class BinaryPlainPageDecoder<TYPE_VARCHAR>;
 template class BinaryPlainPageDecoder<TYPE_HLL>;
