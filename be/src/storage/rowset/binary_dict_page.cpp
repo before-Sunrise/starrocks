@@ -309,21 +309,34 @@ Status BinaryDictPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal
     }
     using cast_type = CppTypeTraits<TYPE_INT>::CppType;
     const auto* codewords = reinterpret_cast<const cast_type*>(_vec_code_buf->raw_data());
-    std::vector<Slice> slices;
-    slices.reserve(read_count);
+    auto slices_data = std::make_unique_for_overwrite<uint8_t[]>(read_count * sizeof(Slice));
+    Slice* slices = reinterpret_cast<Slice*>(slices_data.get());
     if constexpr (Type == TYPE_CHAR) {
         for (size_t i = 0; i < read_count; i++) {
             Slice element = _dict_decoder->string_at_index(codewords[i]);
             element.size = strnlen(element.data, element.size);
-            slices.emplace_back(element);
+            slices[i] = element;
         }
     } else {
-        for (size_t i = 0; i < read_count; i++) {
-            slices.emplace_back(_dict_decoder->string_at_index(codewords[i]));
-        }
+        _dict_decoder->batch_string_at_index(slices, codewords, read_count);
     }
+
+    class SliceContainerAdaptor {
+    public:
+        using value_type = Slice;
+        SliceContainerAdaptor(Slice* slices, size_t size) : _slices(slices), _size(size) {}
+
+        Slice* data() const { return _slices; }
+        size_t size() const { return _size; }
+
+    private:
+        Slice* _slices;
+        size_t _size;
+    };
+    SliceContainerAdaptor adaptor(slices, read_count);
+    bool ok = column->append_strings_overflow(adaptor, _max_value_length);
+    RETURN_IF(!ok, Status::InternalError("BinaryDictPageDecoder::read_by_rowids failed"));
     *count = read_count;
-    CHECK(column->append_strings_overflow(slices, _max_value_length));
     return Status::OK();
 }
 
