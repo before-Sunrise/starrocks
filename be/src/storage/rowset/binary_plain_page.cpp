@@ -188,8 +188,9 @@ Status BinaryPlainPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordina
         return Status::OK();
     }
     size_t total = *count;
-    std::vector<Slice> slices;
-    slices.reserve(total);
+    static_assert(sizeof(Slice) == sizeof(int128_t));
+    auto slices_data = std::make_unique_for_overwrite<uint8_t[]>(total * sizeof(Slice));
+    Slice* slices = reinterpret_cast<Slice*>(slices_data.get());
     if constexpr (Type == TYPE_CHAR) {
         for (size_t i = 0; i < total; i++) {
             ordinal_t ord = rowids[i] - first_ordinal_in_page;
@@ -198,19 +199,35 @@ Status BinaryPlainPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordina
             }
             Slice element = string_at_index(ord);
             element.size = strnlen(element.data, element.size);
-            slices.emplace_back(element);
+            slices[i] = element;
         }
     } else {
         for (size_t i = 0; i < total; i++) {
             ordinal_t ord = rowids[i] - first_ordinal_in_page;
             if (UNLIKELY(ord >= _num_elems)) {
+                total = i;
                 break;
             }
-            slices.emplace_back(string_at_index(ord));
+            slices[i] = string_at_index(ord);
         }
     }
-    if (column->append_strings(slices)) {
-        *count = slices.size();
+
+    class SliceContainerAdaptor {
+    public:
+        using value_type = Slice;
+        SliceContainerAdaptor(Slice* slices, size_t size) : _slices(slices), _size(size) {}
+
+        Slice* data() const { return _slices; }
+        size_t size() const { return _size; }
+
+    private:
+        Slice* _slices;
+        size_t _size;
+    };
+
+    SliceContainerAdaptor adaptor(slices, total);
+    if (column->append_strings(adaptor)) {
+        *count = total;
         return Status::OK();
     }
     return Status::InvalidArgument("Column::append_strings() not supported");
