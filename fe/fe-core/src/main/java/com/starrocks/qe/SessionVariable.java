@@ -932,6 +932,8 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     public static final String ENABLE_MULTI_CAST_LIMIT_PUSH_DOWN = "enable_multi_cast_limit_push_down";
 
+    public static final String ENABLE_PREDICATE_COL_LATE_MATERIALIZE = "enable_predicate_col_late_materialize";
+
     public static final List<String> DEPRECATED_VARIABLES = ImmutableList.<String>builder()
             .add(CODEGEN_LEVEL)
             .add(MAX_EXECUTION_TIME)
@@ -1900,6 +1902,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     //                Fragment-1                                    Fragment-1
     @VarAttr(name = ENABLE_MULTI_CAST_LIMIT_PUSH_DOWN, flag = VariableMgr.INVISIBLE)
     private boolean enableMultiCastLimitPushDown = true;
+
+    @VarAttr(name = ENABLE_PREDICATE_COL_LATE_MATERIALIZE)
+    private boolean enablePredicateColLateMaterialize = false;
 
     public int getCboPruneJsonSubfieldDepth() {
         return cboPruneJsonSubfieldDepth;
@@ -5151,6 +5156,14 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         return enableMultiCastLimitPushDown;
     }
 
+    public void setEnablePredicateColLateMaterialize(boolean enablePredicateColLateMaterialize) {
+        this.enablePredicateColLateMaterialize = enablePredicateColLateMaterialize;
+    }
+
+    public boolean isEnablePredicateColLateMaterialize() {
+        return enablePredicateColLateMaterialize;
+    }
+
     // Serialize to thrift object
     // used for rest api
     public TQueryOptions toThrift() {
@@ -5235,6 +5248,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         tResult.setGroup_concat_max_len(groupConcatMaxLen);
         tResult.setRpc_http_min_size(rpcHttpMinSize);
         tResult.setInterleaving_group_size(interleavingGroupSize);
+        tResult.setEnable_predicate_col_late_materialize(enablePredicateColLateMaterialize);
 
         TCompressionType loadCompressionType =
                 CompressionUtils.findTCompressionByName(loadTransmissionCompressionType);
