@@ -425,6 +425,7 @@ private:
     double _vector_range;
     int _result_order;
     bool _use_ivfpq;
+    bool _enable_predicate_col_late_materialize;
 
     Status _init_reader_from_file(const std::string& index_path, const std::shared_ptr<TabletIndex>& tablet_index_meta,
                                   const std::map<std::string, std::string>& query_params);
@@ -437,6 +438,7 @@ SegmentIterator::SegmentIterator(std::shared_ptr<Segment> segment, Schema schema
           _bitmap_index_evaluator(_schema, _opts.pred_tree),
           _predicate_columns(_opts.pred_tree.num_columns()),
           _use_vector_index(_opts.use_vector_index) {
+    _enable_predicate_col_late_materialize = _opts.enable_predicate_col_late_materialize;
     if (_use_vector_index) {
         // The K in front of Fe is long, which can be changed to uint32. This can be a problem,
         // but this k is wasted memory allocation, so it should not exceed the accuracy of uint32
@@ -1360,7 +1362,7 @@ inline Status SegmentIterator::_read(Chunk* chunk, vector<rowid_t>* rowids, size
         _opts.stats->blocks_load += 1;
         SCOPED_RAW_TIMER(&_opts.stats->block_fetch_ns);
         RETURN_IF_ERROR(_context->read_columns(chunk, range, is_late_materialize_read));
-        chunk->check_or_die();
+        // chunk->check_or_die();
     }
 
     if (rowids != nullptr) {
@@ -1376,7 +1378,7 @@ inline Status SegmentIterator::_read(Chunk* chunk, vector<rowid_t>* rowids, size
 
     _cur_rowid = range.end();
     _opts.stats->raw_rows_read += read_num;
-    chunk->check_or_die();
+    // chunk->check_or_die();
     return Status::OK();
 }
 
@@ -1611,16 +1613,24 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
 
     const ColumnPredicateMap& non_expr_column_predicate_map = _non_expr_pred_tree.get_immediate_column_predicate_map();
     const ColumnPredicateMap& expr_column_predicate_map = _expr_pred_tree.get_immediate_column_predicate_map();
+    ColumnPredicateMap column_predicate_map;
+    column_predicate_map.reserve(non_expr_column_predicate_map.size() + expr_column_predicate_map.size());
     std::vector<ColumnId> predicate_order;
     predicate_order.reserve(non_expr_column_predicate_map.size() + expr_column_predicate_map.size());
     // add non-expr predicate first, add expr predicate next
     for (const auto& pair : non_expr_column_predicate_map) {
         predicate_order.emplace_back(pair.first);
+        column_predicate_map.emplace(pair.first, pair.second);
     }
 
     for (const auto& pair : expr_column_predicate_map) {
+        // if column has non_expr predicate, just append its' expr predicates back
         if (non_expr_column_predicate_map.contains(pair.first)) {
+            column_predicate_map[pair.first].insert(column_predicate_map[pair.first].end(), pair.second.begin(),
+                                                    pair.second.end());
+        } else {
             predicate_order.emplace_back(pair.first);
+            column_predicate_map.emplace(pair.first, pair.second);
         }
     }
 
@@ -1629,14 +1639,14 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
     _context->_column_iterators_for_predicate_late_materialize.emplace_back(_column_iterators[first_column].get());
     _context->_column_id_for_predicate_late_materialize.emplace_back(first_column);
     // add row id iterator
-    _context->_column_iterators_for_predicate_late_materialize.emplace_back(*_context->_column_iterators.end());
+    _context->_column_iterators_for_predicate_late_materialize.emplace_back(_context->_column_iterators.back());
     _context->_column_id_for_predicate_late_materialize.emplace_back(_context->_row_id_column_id);
 
     Chunk* chunk = _context->_read_chunk.get();
     uint16_t chunk_start = chunk->num_rows();
     while ((chunk_start < return_chunk_threshold) & _range_iter.has_more()) {
         RETURN_IF_ERROR(_read(chunk, rowid, chunk_capacity - chunk_start, true));
-        chunk->check_or_die();
+        // chunk->check_or_die();
         size_t next_start = chunk->num_rows();
 
         if (has_non_expr_predicate) {
@@ -1645,7 +1655,7 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
             ASSIGN_OR_RETURN(next_start,
                              _filter_by_compound_and_predicates(chunk, rowid, chunk_start, next_start,
                                                                 non_expr_column_predicate_map.at(first_column)));
-            chunk->check_or_die();
+            // chunk->check_or_die();
         }
         chunk_start = next_start;
         DCHECK_EQ(chunk_start, chunk->num_rows());
@@ -1655,8 +1665,12 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         }
     }
 
-    ASSIGN_OR_RETURN(size_t chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk->num_rows(),
-                                                                           expr_column_predicate_map.at(first_column)));
+    size_t chunk_size = chunk->num_rows();
+
+    if (expr_column_predicate_map.contains(first_column)) {
+        ASSIGN_OR_RETURN(chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk->num_rows(),
+                                                                        expr_column_predicate_map.at(first_column)));
+    }
 
     bool may_has_del_row = chunk->delete_state() != DEL_NOT_SATISFIED;
     for (int i = 1; i < predicate_order.size(); i++) {
@@ -1671,12 +1685,15 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         DCHECK_EQ(ordinals->size(), col->size());
         may_has_del_row |= (col->delete_state() != DEL_NOT_SATISFIED);
 
-        // evaluate predicate on this column
+        // evaluate predicate on this column, including expr and non-expr predicates
         ASSIGN_OR_RETURN(chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk->num_rows(),
-                                                                        expr_column_predicate_map.at(current_column)));
+                                                                        column_predicate_map.at(current_column)));
     }
 
+    chunk->check_or_die();
+
     chunk->set_delete_state(may_has_del_row ? DEL_PARTIAL_SATISFIED : DEL_NOT_SATISFIED);
+    return chunk_size;
 }
 
 StatusOr<size_t> SegmentIterator::_predicate_evaluate_without_late_materialize(vector<rowid_t>* rowid) {
@@ -2095,6 +2112,7 @@ Status SegmentIterator::_build_context(ScanContext* ctx) {
         ctx->_late_materialize = true;
         ctx->_skip_dict_decode_indexes.push_back(false);
         ctx->_row_id_column_id = cid;
+        ctx->_enable_predicate_col_late_materialize = _enable_predicate_col_late_materialize;
     }
 
     for (size_t i = 0; i < num_fields; ++i) {
