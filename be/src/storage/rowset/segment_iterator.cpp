@@ -1691,7 +1691,10 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         current_columns.emplace_back(col);
         col->reserve(ordinals->size());
         col->resize(0);
-        RETURN_IF_ERROR(_column_decoders[current_column].decode_values_by_rowid(*ordinals, col.get()));
+        {
+            SCOPED_RAW_TIMER(&_opts.stats->late_materialize_ns);
+            RETURN_IF_ERROR(_column_decoders[current_column].decode_values_by_rowid(*ordinals, col.get()));
+        }
         DCHECK_EQ(ordinals->size(), col->size());
         may_has_del_row |= (col->delete_state() != DEL_NOT_SATISFIED);
 
@@ -2140,7 +2143,8 @@ Status SegmentIterator::_build_context(ScanContext* ctx) {
     }
 
     size_t build_read_index_size = ctx->_read_schema.num_fields();
-    if (late_materialization && (predicate_count < _schema.num_fields() || !ctx->_subfield_columns.empty())) {
+    if (late_materialization && (predicate_count < _schema.num_fields() || !ctx->_subfield_columns.empty() ||
+                                 _enable_predicate_col_late_materialize)) {
         // ordinal column
         ColumnId cid = -1;
         if (predicate_count < _schema.num_fields()) {
@@ -2203,7 +2207,8 @@ Status SegmentIterator::_init_context() {
     RETURN_IF_ERROR(_init_global_dict_decoder());
 
     if (_predicate_columns == 0 || _opts.pred_tree.empty() ||
-        (_predicate_columns >= _schema.num_fields() && _predicate_column_access_paths.empty())) {
+        (_predicate_columns >= _schema.num_fields() && _predicate_column_access_paths.empty() &&
+         !_enable_predicate_col_late_materialize)) {
         // non or all field has predicate, disable late materialization.
         RETURN_IF_ERROR(_build_context<false>(&_context_list[0]));
     } else {
