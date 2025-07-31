@@ -334,7 +334,7 @@ public:
 
 private:
     static uint32_t _hash_slice(const CacheKey& s);
-    static uint32_t _shard(uint32_t hash);
+    uint32_t _shard(uint32_t hash);
     void _set_capacity(size_t capacity);
     size_t _get_stat(size_t (LRUCache::*mem_fun)() const) const;
 
