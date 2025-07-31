@@ -414,8 +414,8 @@ ShardedLRUCache::~ShardedLRUCache() {
 
 void ShardedLRUCache::_set_capacity(size_t capacity) {
     const size_t per_shard = (capacity + (_shard_count - 1)) / _shard_count;
-    for (auto& _shard : _shards) {
-        _shard.set_capacity(per_shard);
+    for (int i = 0; i < _shard_count; i++) {
+        _shards[i].set_capacity(per_shard);
     }
     _capacity = capacity;
 }
@@ -485,8 +485,8 @@ size_t ShardedLRUCache::get_capacity() const {
 
 void ShardedLRUCache::prune() {
     int num_prune = 0;
-    for (auto& _shard : _shards) {
-        num_prune += _shard.prune();
+    for (int i = 0; i < _shard_count; i++) {
+        num_prune += _shards[i].prune();
     }
     VLOG(7) << "Successfully prune cache, clean " << num_prune << " entries.";
 }
