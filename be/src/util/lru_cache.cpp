@@ -473,8 +473,8 @@ uint64_t ShardedLRUCache::new_id() {
 
 size_t ShardedLRUCache::_get_stat(size_t (LRUCache::*mem_fun)() const) const {
     size_t n = 0;
-    for (auto& shard : _shards) {
-        n += (shard.*mem_fun)();
+    for (int i = 0; i < _shard_count; i++) {
+        n += (_shards[i].*mem_fun)();
     }
     return n;
 }
