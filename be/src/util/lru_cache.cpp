@@ -403,13 +403,13 @@ ShardedLRUCache::ShardedLRUCache(size_t capacity, int shard_bits) : _last_id(0),
     _shard_count = 1 << _shard_bits;
     _shards = new LRUCache[_shard_count];
     const size_t per_shard = (_capacity + (_shard_count - 1)) / _shard_count;
-    for (auto& _shard : _shards) {
-        _shard.set_capacity(per_shard);
+    for (int i = 0; i < _shard_count; i++) {
+        _shards[i].set_capacity(per_shard);
     }
 }
 
 ShardedLRUCache::~ShardedLRUCache() {
-    delete []_shards;
+    delete[] _shards;
 }
 
 void ShardedLRUCache::_set_capacity(size_t capacity) {

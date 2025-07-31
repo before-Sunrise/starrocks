@@ -16,6 +16,8 @@
 
 #include <butil/fast_rand.h>
 
+#include "common/config.h"
+
 namespace starrocks {
 Status LRUCacheEngine::init(const CacheOptions& options) {
     _cache = std::make_unique<ShardedLRUCache>(options.mem_space_size, config::page_cache_shard_bits);
