@@ -277,14 +277,20 @@ Status BinaryDictPageDecoder<Type>::next_batch(const SparseRange<>& range, Colum
     };
 
     size_t estimated_column_size = _dict_decoder->estimate_columns_size();
-    BinaryColumn* binary_col;
+    Column* data_col;
     if (dst->is_nullable()) {
         // This is NullableColumn, get its data_column
-        binary_col = down_cast<BinaryColumn*>(down_cast<NullableColumn*>(dst)->data_column().get());
+        auto* nullable_col = down_cast<NullableColumn*>(dst);
+        data_col = nullable_col->data_column().get();
+
     } else {
-        binary_col = down_cast<BinaryColumn*>(dst);
+        data_col = dst;
     }
-    binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+
+    if (data_col->is_binary()) {
+        BinaryColumn* binary_col = down_cast<BinaryColumn*>(data_col);
+        binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+    }
 
 
     SliceContainerAdaptor adaptor(slices, nread);
