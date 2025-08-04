@@ -347,14 +347,20 @@ Status BinaryDictPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal
     };
 
     size_t estimated_column_size = _dict_decoder->estimate_columns_size();
-    BinaryColumn* binary_col;
+    Column* data_col;
     if (column->is_nullable()) {
         // This is NullableColumn, get its data_column
-        binary_col = down_cast<BinaryColumn*>(down_cast<NullableColumn*>(column)->data_column().get());
+        auto* nullable_col = down_cast<NullableColumn*>(column);
+        data_col = nullable_col->data_column().get();
+
     } else {
-        binary_col = down_cast<BinaryColumn*>(column);
+        data_col = column;
     }
-    binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+
+    if (data_col->is_binary()) {
+        BinaryColumn* binary_col = down_cast<BinaryColumn*>(data_col);
+        binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+    }
 
     SliceContainerAdaptor adaptor(slices, read_count);
     bool ok = column->append_strings_overflow(adaptor, _max_value_length);
