@@ -214,6 +214,9 @@ public:
 
         _parsed = true;
 
+        uint32_t total_bytes = _offsets_pos;
+        _estimated_column_size = total_bytes / _num_elems * config::vector_chunk_size;
+
         return Status::OK();
     }
 
@@ -229,7 +232,8 @@ public:
 
     bool append_range(uint32_t idx, uint32_t end, Column* dst) const;
 
-    Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count, Column* column) override;
+    Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count,
+                          Column* column) override;
 
     uint32_t count() const override {
         DCHECK(_parsed);
@@ -242,6 +246,10 @@ public:
     }
 
     EncodingTypePB encoding_type() const override { return PLAIN_ENCODING; }
+
+    size_t estimate_columns_size() const {
+        return _estimated_column_size;
+    }
 
     Slice string_at_index(uint32_t idx) const {
         const uint32_t start_offset = offset(idx);
@@ -300,6 +308,8 @@ private:
 
     // Index of the currently seeked element in the page.
     uint32_t _cur_idx;
+
+    size_t _estimated_column_size;
 
     std::optional<std::vector<Slice>> _parsed_datas;
 };

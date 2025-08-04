@@ -225,6 +225,15 @@ Status BinaryPlainPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordina
         size_t _size;
     };
 
+    BinaryColumn* binary_col;
+    if (column->is_nullable()) {
+        // This is NullableColumn, get its data_column
+        binary_col = down_cast<BinaryColumn*>(down_cast<NullableColumn*>(column)->data_column().get());
+    } else {
+        binary_col = down_cast<BinaryColumn*>(column);
+    }
+    binary_col->reserve(config::vector_chunk_size, _estimated_column_size);
+
     SliceContainerAdaptor adaptor(slices, total);
     if (column->append_strings(adaptor)) {
         *count = total;
