@@ -36,6 +36,7 @@
 
 #include <memory>
 
+#include "column/nullable_column.h"
 #include "common/logging.h"
 #include "gutil/casts.h"
 #include "gutil/strings/substitute.h" // for Substitute
@@ -275,6 +276,17 @@ Status BinaryDictPageDecoder<Type>::next_batch(const SparseRange<>& range, Colum
         size_t _size;
     };
 
+    size_t estimated_column_size = _dict_decoder->estimate_columns_size();
+    BinaryColumn* binary_col;
+    if (dst->is_nullable()) {
+        // This is NullableColumn, get its data_column
+        binary_col = down_cast<BinaryColumn*>(down_cast<NullableColumn*>(dst)->data_column().get());
+    } else {
+        binary_col = down_cast<BinaryColumn*>(dst);
+    }
+    binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+
+
     SliceContainerAdaptor adaptor(slices, nread);
     bool ok = dst->append_strings_overflow(adaptor, _max_value_length);
     DCHECK(ok) << "append_strings_overflow failed";
@@ -333,6 +345,17 @@ Status BinaryDictPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal
         Slice* _slices;
         size_t _size;
     };
+
+    size_t estimated_column_size = _dict_decoder->estimate_columns_size();
+    BinaryColumn* binary_col;
+    if (column->is_nullable()) {
+        // This is NullableColumn, get its data_column
+        binary_col = down_cast<BinaryColumn*>(down_cast<NullableColumn*>(column)->data_column().get());
+    } else {
+        binary_col = down_cast<BinaryColumn*>(column);
+    }
+    binary_col->reserve(config::vector_chunk_size, estimated_column_size);
+
     SliceContainerAdaptor adaptor(slices, read_count);
     bool ok = column->append_strings_overflow(adaptor, _max_value_length);
     RETURN_IF(!ok, Status::InternalError("BinaryDictPageDecoder::read_by_rowids failed"));
