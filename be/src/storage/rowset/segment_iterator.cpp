@@ -153,6 +153,8 @@ private:
             std::vector<ColumnIterator*>& column_iterators =
                     is_late_materialize_read ? _column_iterators_for_predicate_late_materialize : _column_iterators;
             bool may_has_del_row = chunk->delete_state() != DEL_NOT_SATISFIED;
+            std::vector<size_t> pruned_cols;
+            size_t pruned_col_size = 0;
             for (size_t i = 0; i < column_iterators.size(); i++) {
                 ColumnPtr& col = is_late_materialize_read
                                          ? chunk->get_column_by_id(_column_id_for_predicate_late_materialize[i])
@@ -162,6 +164,10 @@ private:
                     continue;
                 }
                 RETURN_IF_ERROR(column_iterators[i]->next_batch(range, col.get()));
+                if (pruned_col_size == 0) {
+                    pruned_col_size = col->size();
+                }
+                DCHECK_EQ(pruned_col_size, col->size());
                 may_has_del_row |= (col->delete_state() != DEL_NOT_SATISFIED);
             }
             for (size_t i : pruned_cols) {
