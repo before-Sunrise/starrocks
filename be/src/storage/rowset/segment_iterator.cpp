@@ -199,6 +199,7 @@ private:
         std::vector<ColumnIterator*> _subfield_iterators;
         std::vector<ColumnIterator*> _column_iterators_for_predicate_late_materialize;
         std::vector<ColumnId> _column_id_for_predicate_late_materialize;
+        std::map<ColumnId, ColumnIterator*> _column_ids_to_column_iterators;
         ColumnId _row_id_column_id;
 
         ScanContext* _next{nullptr};
@@ -1648,7 +1649,8 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
 
     const ColumnId first_column_id = predicate_order.front();
     _context->_column_iterators_for_predicate_late_materialize.clear();
-    _context->_column_iterators_for_predicate_late_materialize.emplace_back(_column_iterators[first_column_id].get());
+    _context->_column_iterators_for_predicate_late_materialize.emplace_back(
+            _context->_column_ids_to_column_iterators[first_column_id]);
     _context->_column_id_for_predicate_late_materialize.emplace_back(first_column_id);
     // add row id iterator
     _context->_column_iterators_for_predicate_late_materialize.emplace_back(_context->_column_iterators.back());
@@ -2151,6 +2153,7 @@ Status SegmentIterator::_build_context(ScanContext* ctx) {
             ctx->_is_dict_column.emplace_back(false);
             ctx->_dict_decode_schema.append(f);
         }
+        ctx->_column_ids_to_column_iterators.emplace(cid, ctx->_column_iterators.back());
     }
 
     size_t build_read_index_size = ctx->_read_schema.num_fields();

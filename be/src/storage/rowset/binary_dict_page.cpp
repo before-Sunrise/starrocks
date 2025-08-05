@@ -292,7 +292,6 @@ Status BinaryDictPageDecoder<Type>::next_batch(const SparseRange<>& range, Colum
         binary_col->reserve(config::vector_chunk_size, estimated_column_size);
     }
 
-
     SliceContainerAdaptor adaptor(slices, nread);
     bool ok = dst->append_strings_overflow(adaptor, _max_value_length);
     DCHECK(ok) << "append_strings_overflow failed";
