@@ -29,8 +29,8 @@ import java.util.concurrent.ExecutorService;
 // all at once execution schedule only schedule once.
 public class AllAtOnceExecutionSchedule implements ExecutionSchedule {
     private Coordinator coordinator;
-    private Deployer deployer;
-    private ExecutionDAG dag;
+    protected Deployer deployer;
+    protected ExecutionDAG dag;
     private volatile boolean cancelled = false;
 
     class DeployMoreScanRangesTask implements Runnable {

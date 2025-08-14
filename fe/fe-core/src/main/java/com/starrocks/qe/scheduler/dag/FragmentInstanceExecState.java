@@ -171,6 +171,15 @@ public class FragmentInstanceExecState {
         }
     }
 
+    public void changeStateAndFuture(Future<PExecPlanFragmentResult> future) {
+        transitionState(State.CREATED, State.DEPLOYING);
+        deployFuture = future;
+    }
+
+    public void setDeployFuture(Future<PExecPlanFragmentResult> deployFuture) {
+        this.deployFuture = deployFuture;
+    }
+
     /**
      * Deploy the fragment instance to the worker asynchronously.
      * The state transitions to DEPLOYING.

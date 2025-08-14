@@ -109,6 +109,8 @@ public:
 
     static Status append_incremental_scan_ranges(ExecEnv* exec_env, const TExecPlanFragmentParams& request);
 
+    Status prepare_global_state(ExecEnv* exec_env, const TExecPlanFragmentParams& common_request);
+
 private:
     void _fail_cleanup(bool fragment_has_registed);
     uint32_t _calc_dop(ExecEnv* exec_env, const UnifiedExecPlanFragmentParams& request) const;

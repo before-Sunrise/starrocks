@@ -358,7 +358,41 @@ void PInternalServiceImplBase<T>::_exec_batch_plan_fragments(google::protobuf::R
         return;
     }
 
-    Status status = _exec_plan_fragment_by_pipeline(common_request, unique_requests[0]);
+    SignalTimerGuard guard(config::pipeline_prepare_timeout_guard_ms);
+    pipeline::FragmentExecutor fragment_executor;
+    fragment_executor.prepare_global_state(_exec_env, common_request);
+
+    std::vector<PromiseStatusSharedPtr> promise_statuses;
+    std::vector<pipeline::FragmentExecutor> fragment_executors(unique_requests.size());
+    for (int i = 0; i < unique_requests.size(); ++i) {
+        auto& unique_request = unique_requests[i];
+        LOG(INFO) << "exec plan fragment, fragment_instance_id=" << print_id(unique_request.params.fragment_instance_id)
+                  << ", coord=" << common_request.coord << ", backend=" << unique_request.backend_num
+                  << ", is_pipeline=1"
+                  << ", chunk_size=" << common_request.query_options.batch_size;
+
+        PromiseStatusSharedPtr ms = std::make_shared<PromiseStatus>();
+        _exec_env->pipeline_prepare_pool()->offer(
+                [&] { ms->set_value(fragment_executors[i].prepare(_exec_env, unique_request, unique_request)); });
+        promise_statuses.emplace_back(std::move(ms));
+    }
+
+    Status status;
+    for (size_t i = 0; i < unique_requests.size(); ++i) {
+        auto& promise = promise_statuses[i];
+        // When a preparation fails, return error immediately. The other unfinished preparation is safe,
+        // since they can use the shared pointer of promise and t_batch_requests.
+        status = promise->get_future().get();
+        if (status.ok()) {
+            status = fragment_executors[i].execute(_exec_env);
+        } else if (status.is_duplicate_rpc_invocation()) {
+            status = Status::OK();
+        }
+        if (!status.ok()) {
+            break;
+        }
+    }
+
     status.to_protobuf(response->mutable_status());
 }
 
