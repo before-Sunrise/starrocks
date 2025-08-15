@@ -531,8 +531,8 @@ struct TExecBatchPlanFragmentsParams {
 }
 
 struct TExecSingleNodePlanFragmentsParams {
-  1. optional TExecBatchPlanFragmentsParams
-  2. optional bool only_prepare
+  1: optional TExecBatchPlanFragmentsParams batch_params
+  2: optional bool only_prepare
 }
 
 // CancelPlanFragment

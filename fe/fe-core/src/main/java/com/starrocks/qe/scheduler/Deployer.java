@@ -41,6 +41,7 @@ import com.starrocks.rpc.RpcException;
 import com.starrocks.thrift.TDescriptorTable;
 import com.starrocks.thrift.TExecBatchPlanFragmentsParams;
 import com.starrocks.thrift.TExecPlanFragmentParams;
+import com.starrocks.thrift.TExecSingleNodePlanFragmentsParams;
 import com.starrocks.thrift.TNetworkAddress;
 import com.starrocks.thrift.TQueryOptions;
 import com.starrocks.thrift.TStatusCode;
@@ -487,8 +488,12 @@ public class Deployer {
         // 2. clear unique param's desc table, so fragment instances can prepare parallelly
         tRequest.getUnique_param_per_instance().forEach(instance -> instance.setDesc_tbl(emptyDescTable));
 
+        TExecSingleNodePlanFragmentsParams singleNodePlanFragmentsParams = new TExecSingleNodePlanFragmentsParams();
+        singleNodePlanFragmentsParams.setBatch_params(tRequest);
+        singleNodePlanFragmentsParams.setOnly_prepare(false);
+
         TSerializer serializer = AttachmentRequest.getSerializer(jobSpec.getPlanProtocol());
-        byte[] serializedRequest = serializer.serialize(tRequest);
+        byte[] serializedRequest = serializer.serialize(singleNodePlanFragmentsParams);
 
         try {
             return BackendServiceClient.getInstance()

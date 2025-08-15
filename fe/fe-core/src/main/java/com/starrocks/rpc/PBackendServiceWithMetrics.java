@@ -13,7 +13,6 @@
 // limitations under the License.
 package com.starrocks.rpc;
 
-import com.baidu.jprotobuf.pbrpc.ProtobufRPC;
 import com.starrocks.metric.MetricRepo;
 import com.starrocks.proto.ExecuteCommandRequestPB;
 import com.starrocks.proto.ExecuteCommandResultPB;

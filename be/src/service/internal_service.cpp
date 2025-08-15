@@ -352,7 +352,8 @@ void PInternalServiceImplBase<T>::_exec_batch_plan_fragments(google::protobuf::R
     }
 
     auto ser_request = cntl->request_attachment().to_string();
-    std::shared_ptr<TExecBatchPlanFragmentsParams> t_batch_requests = std::make_shared<TExecBatchPlanFragmentsParams>();
+    std::shared_ptr<TExecSingleNodePlanFragmentsParams> t_batch_requests =
+            std::make_shared<TExecSingleNodePlanFragmentsParams>();
     {
         const auto* buf = (const uint8_t*)ser_request.data();
         uint32_t len = ser_request.size();
@@ -363,8 +364,10 @@ void PInternalServiceImplBase<T>::_exec_batch_plan_fragments(google::protobuf::R
         }
     }
 
-    auto& common_request = t_batch_requests->common_param;
-    auto& unique_requests = t_batch_requests->unique_param_per_instance;
+    TExecBatchPlanFragmentsParams& t_batch_plan_fragments_params = t_batch_requests->batch_params;
+
+    auto& common_request = t_batch_plan_fragments_params.common_param;
+    auto& unique_requests = t_batch_plan_fragments_params.unique_param_per_instance;
 
     if (unique_requests.empty()) {
         Status::OK().to_protobuf(response->mutable_status());
