@@ -13,6 +13,7 @@
 // limitations under the License.
 package com.starrocks.rpc;
 
+import com.baidu.jprotobuf.pbrpc.ProtobufRPC;
 import com.starrocks.metric.MetricRepo;
 import com.starrocks.proto.ExecuteCommandRequestPB;
 import com.starrocks.proto.ExecuteCommandResultPB;
@@ -154,5 +155,11 @@ public class PBackendServiceWithMetrics implements PBackendService {
     public Future<PUpdateTransactionStateResponse> updateTransactionState(PUpdateTransactionStateRequest request) {
         increaseMetrics();
         return pBackendService.updateTransactionState(request);
+    }
+
+    @Override
+    public Future<PExecBatchPlanFragmentsResult> execSingleNodePlanFragments(PExecBatchPlanFragmentsRequest request) {
+        increaseMetrics();
+        return pBackendService.execSingleNodePlanFragments(request);
     }
 }

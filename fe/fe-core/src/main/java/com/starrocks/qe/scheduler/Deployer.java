@@ -334,6 +334,13 @@ public class Deployer {
             LOG.warn("deployFragmentsForSingleNode failed", e);
         }
 
+        PExecBatchPlanFragmentsResult result = null;
+        try {
+            result = batchFuture.get();
+        } catch (Exception e) {
+            LOG.warn(e);
+        }
+
         FakeDeployFuture sharedFakeFuture = new FakeDeployFuture(batchFuture);
         fragmentInstanceExecStates.forEach(
                 fragmentInstanceExecState -> {
@@ -389,7 +396,39 @@ public class Deployer {
         @Override
         public PExecPlanFragmentResult get(long timeout, TimeUnit unit)
                 throws InterruptedException, ExecutionException, TimeoutException {
-            return getResult();
+            if (cachedResult != null) {
+                return cachedResult;
+            }
+
+            try {
+                PExecBatchPlanFragmentsResult batchResult = batchFuture.get(timeout, unit);
+
+                PExecPlanFragmentResult singleResult = new PExecPlanFragmentResult();
+                singleResult.status = batchResult.status;
+
+                if (batchResult.status.statusCode == 0) {
+                    cachedResult = singleResult;
+                } else {
+                    StatusPB errorStatus = new StatusPB();
+                    errorStatus.statusCode = batchResult.status.statusCode;
+                    if (batchResult.status.errorMsgs != null && !batchResult.status.errorMsgs.isEmpty()) {
+                        errorStatus.errorMsgs = batchResult.status.errorMsgs;
+                    } else {
+                        errorStatus.errorMsgs = new ArrayList<>();
+                        errorStatus.errorMsgs.add("Batch deployment failed");
+                    }
+                    singleResult.status = errorStatus;
+                    cachedResult = singleResult;
+                }
+
+                return cachedResult;
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ExecutionException("Batch deployment interrupted", e);
+            } catch (Exception e) {
+                throw new ExecutionException("Batch deployment failed", e);
+            }
         }
 
         private PExecPlanFragmentResult getResult() throws ExecutionException {

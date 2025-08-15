@@ -133,7 +133,7 @@ public class BackendServiceClient {
         try (Timer ignored = Tracers.watchScope(Tracers.Module.SCHEDULER, "DeployAsyncSendTime")) {
             final PBackendService service = BrpcProxy.getBackendService(address);
             TalkTimeoutController.setTalkTimeout(Config.brpc_send_plan_fragment_timeout_ms);
-            return service.execBatchPlanFragmentsAsync(pRequest);
+            return service.execSingleNodePlanFragments(pRequest);
         } catch (NoSuchElementException e) {
             try {
                 // retry

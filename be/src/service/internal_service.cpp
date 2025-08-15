@@ -294,6 +294,18 @@ void PInternalServiceImplBase<T>::exec_plan_fragment(google::protobuf::RpcContro
 }
 
 template <typename T>
+void PInternalServiceImplBase<T>::exec_single_node_plan_fragments(google::protobuf::RpcController* controller,
+                                                                  const PExecBatchPlanFragmentsRequest* request,
+                                                                  PExecBatchPlanFragmentsResult* result,
+                                                                  google::protobuf::Closure* done) {
+    auto task = [=]() { this->_exec_batch_plan_fragments(controller, request, result, done); };
+    if (!_exec_env->pipeline_prepare_pool()->try_offer(std::move(task))) {
+        ClosureGuard closure_guard(done);
+        Status::ServiceUnavailable("submit exec_batch_plan_fragments failed").to_protobuf(result->mutable_status());
+    }
+}
+
+template <typename T>
 void PInternalServiceImplBase<T>::_exec_plan_fragment(google::protobuf::RpcController* cntl_base,
                                                       const PExecPlanFragmentRequest* request,
                                                       PExecPlanFragmentResult* response,
@@ -319,10 +331,11 @@ void PInternalServiceImplBase<T>::exec_batch_plan_fragments(google::protobuf::Rp
                                                             PExecBatchPlanFragmentsResult* response,
                                                             google::protobuf::Closure* done) {
     auto task = [=]() { this->_exec_batch_plan_fragments(cntl_base, request, response, done); };
-    if (!_exec_env->pipeline_prepare_pool()->try_offer(std::move(task))) {
-        ClosureGuard closure_guard(done);
-        Status::ServiceUnavailable("submit exec_batch_plan_fragments failed").to_protobuf(response->mutable_status());
-    }
+    task();
+    // if (!_exec_env->pipeline_prepare_pool()->try_offer(std::move(task))) {
+    //     ClosureGuard closure_guard(done);
+    //     Status::ServiceUnavailable("submit exec_batch_plan_fragments failed").to_protobuf(response->mutable_status());
+    // }
 }
 
 template <typename T>
