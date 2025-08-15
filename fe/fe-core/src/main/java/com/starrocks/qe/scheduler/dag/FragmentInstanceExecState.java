@@ -171,9 +171,8 @@ public class FragmentInstanceExecState {
         }
     }
 
-    public void changeStateAndFuture(Future<PExecPlanFragmentResult> future) {
+    public void changeStateIntoDeploying() {
         transitionState(State.CREATED, State.DEPLOYING);
-        deployFuture = future;
     }
 
     public void setDeployFuture(Future<PExecPlanFragmentResult> deployFuture) {

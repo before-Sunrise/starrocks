@@ -63,7 +63,6 @@ import com.starrocks.proto.PTriggerProfileReportResult;
 import com.starrocks.proto.PUniqueId;
 import com.starrocks.proto.PUpdateFailPointStatusRequest;
 import com.starrocks.proto.PUpdateFailPointStatusResponse;
-import com.starrocks.thrift.TExecBatchPlanFragmentsParams;
 import com.starrocks.thrift.TExecPlanFragmentParams;
 import com.starrocks.thrift.TMVMaintenanceTasks;
 import com.starrocks.thrift.TNetworkAddress;
@@ -124,10 +123,11 @@ public class BackendServiceClient {
     }
 
     public Future<PExecBatchPlanFragmentsResult> execBatchPlanFragmentsAsync(
-            TNetworkAddress address, TExecBatchPlanFragmentsParams tRequest)
+            TNetworkAddress address, byte[] serializedRequest, String protocol)
             throws TException, RpcException {
         final PExecBatchPlanFragmentsRequest pRequest = new PExecBatchPlanFragmentsRequest();
-        pRequest.setRequest(tRequest);
+        pRequest.setRequest(serializedRequest);
+        pRequest.setAttachmentProtocol(protocol);
 
         Tracers.count(Tracers.Module.SCHEDULER, "DeployDataSize", pRequest.serializedRequest.length);
         try (Timer ignored = Tracers.watchScope(Tracers.Module.SCHEDULER, "DeployAsyncSendTime")) {

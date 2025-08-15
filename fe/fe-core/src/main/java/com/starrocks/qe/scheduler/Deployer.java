@@ -35,6 +35,7 @@ import com.starrocks.qe.scheduler.dag.FragmentInstance;
 import com.starrocks.qe.scheduler.dag.FragmentInstanceExecState;
 import com.starrocks.qe.scheduler.dag.JobSpec;
 import com.starrocks.qe.scheduler.slot.DeployState;
+import com.starrocks.rpc.AttachmentRequest;
 import com.starrocks.rpc.BackendServiceClient;
 import com.starrocks.rpc.RpcException;
 import com.starrocks.thrift.TDescriptorTable;
@@ -46,6 +47,7 @@ import com.starrocks.thrift.TStatusCode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
+import org.apache.thrift.TSerializer;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -325,15 +327,19 @@ public class Deployer {
             return;
         }
 
-        Future<PExecBatchPlanFragmentsResult> batchFuture;
+        Future<PExecBatchPlanFragmentsResult> batchFuture = null;
         try (Timer ignored = Tracers.watchScope(Tracers.Module.SCHEDULER, "DeployStageByStageTime")) {
-            batchFuture =
-                    execRemoteBatchFragmentsAsync(fragmentInstanceExecStates);
+            batchFuture = execRemoteBatchFragmentsAsync(fragmentInstanceExecStates);
+        } catch (Exception e) {
+            LOG.warn("deployFragmentsForSingleNode failed", e);
         }
 
         FakeDeployFuture sharedFakeFuture = new FakeDeployFuture(batchFuture);
         fragmentInstanceExecStates.forEach(
-                fragmentInstanceExecState -> fragmentInstanceExecState.setDeployFuture(sharedFakeFuture));
+                fragmentInstanceExecState -> {
+                    fragmentInstanceExecState.changeStateIntoDeploying();
+                    fragmentInstanceExecState.setDeployFuture(sharedFakeFuture);
+                });
 
         try (Timer ignored = Tracers.watchScope(Tracers.Module.SCHEDULER, "DeployWaitTime")) {
             waitForDeploymentCompletion(fragmentInstanceExecStates);
@@ -424,7 +430,7 @@ public class Deployer {
     }
 
     private Future<PExecBatchPlanFragmentsResult> execRemoteBatchFragmentsAsync(
-            List<FragmentInstanceExecState> fragmentInstanceExecStateList) {
+            List<FragmentInstanceExecState> fragmentInstanceExecStateList) throws TException {
         List<TExecPlanFragmentParams> requestsToDeploy = new ArrayList<>();
         fragmentInstanceExecStateList.forEach(
                 fragmentInstanceExecState -> requestsToDeploy.add(fragmentInstanceExecState.getRequestToDeploy()));
@@ -434,16 +440,22 @@ public class Deployer {
         tRequest.setUnique_param_per_instance(requestsToDeploy);
 
         // 1. create a common param only with desc table, it will prepare first
-        TExecPlanFragmentParams commonParam = new TExecPlanFragmentParams();
+        TExecPlanFragmentParams commonParam = requestsToDeploy.get(0).deepCopy();
         commonParam.setDesc_tbl(jobSpec.getDescTable());
+        //        commonParam.setProtocol_version(requestsToDeploy.get(0).getProtocol_version());
         tRequest.setCommon_param(commonParam);
 
         // 2. clear unique param's desc table, so fragment instances can prepare parallelly
         tRequest.getUnique_param_per_instance().forEach(instance -> instance.setDesc_tbl(emptyDescTable));
 
+        TSerializer serializer = AttachmentRequest.getSerializer(jobSpec.getPlanProtocol());
+        byte[] serializedRequest = serializer.serialize(tRequest);
+
         try {
-            return BackendServiceClient.getInstance().execBatchPlanFragmentsAsync(brpcAddress, tRequest);
-        } catch (RpcException | TException e) {
+            return BackendServiceClient.getInstance()
+                    .execBatchPlanFragmentsAsync(brpcAddress, serializedRequest, jobSpec.getPlanProtocol());
+        } catch (Exception e) {
+            LOG.warn("execBatchPlanFragmentsAsync failed", e);
             // DO NOT throw exception here, return a complete future with error code,
             // so that the following logic will cancel the fragment.
             return new Future<PExecBatchPlanFragmentsResult>() {
