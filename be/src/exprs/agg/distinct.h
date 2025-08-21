@@ -40,6 +40,7 @@
 #include "thrift/protocol/TJSONProtocol.h"
 #include "util/phmap/phmap_dump.h"
 #include "util/slice.h"
+#include "util/stack_util.h"
 
 namespace starrocks {
 
@@ -240,6 +241,124 @@ struct AdaptiveSliceHashSet {
     HashOnSliceWithHash hash_function() const { return HashOnSliceWithHash(); }
 };
 
+// Adaptive fixed-length key hash set which can convert from one-level to two-level set
+template <typename T>
+struct AdaptiveFixedHashSet {
+    using OneLevelSet = HashSetWithAggStateAllocator<T>;
+    using TwoLevelSet =
+            phmap::parallel_flat_hash_set<T, StdHash<T>, phmap::priv::hash_default_eq<T>, AggregateStateAllocator<T>>;
+
+    AdaptiveFixedHashSet() { set = std::make_shared<OneLevelSet>(); }
+
+    void try_convert_to_two_level() {
+        if (set != nullptr) {
+            // Heuristic similar to AdaptiveSliceHashSet: check periodically and convert when memory likely large
+            size_t cur_size = set->size();
+            if (cur_size != 0 && (cur_size > 655360)) {
+                // Approximate memory usage by capacity * sizeof(T)
+                // size_t approx_bytes = set->capacity() * sizeof(T);
+                // LOG(INFO) << "split hash set" << get_stack_trace();
+                two_level_set = std::make_shared<TwoLevelSet>();
+                two_level_set->reserve(set->capacity());
+                two_level_set->insert(set->begin(), set->end());
+                set.reset();
+            }
+        }
+    }
+
+    // Insert without precomputed hash
+    void emplace(T key) {
+        if (set != nullptr) {
+            auto res = set->emplace(key);
+            if (res.second) try_convert_to_two_level();
+        } else {
+            two_level_set->emplace(key);
+        }
+    }
+
+    // Insert with precomputed hash
+    void emplace_with_hash(size_t hash, T key) {
+        if (set != nullptr) {
+            auto res = set->emplace_with_hash(hash, key);
+            if (res.second) try_convert_to_two_level();
+        } else {
+            two_level_set->emplace_with_hash(hash, key);
+        }
+    }
+
+    void prefetch(T key) {
+        if (set != nullptr) {
+            set->prefetch(key);
+        } else {
+            two_level_set->prefetch(key);
+        }
+    }
+
+    size_t size() const { return set != nullptr ? set->size() : two_level_set->size(); }
+
+    void reserve(size_t n) {
+        if (set != nullptr) {
+            set->reserve(n);
+        } else {
+            two_level_set->reserve(n);
+        }
+    }
+
+    size_t serialize_size() const {
+        size_t sz = size() * sizeof(T) + sizeof(size_t);
+        sz = std::max(sz, MIN_SIZE_OF_HASH_SET_SERIALIZED_DATA);
+        return sz;
+    }
+
+    void serialize(uint8_t* dst) const {
+        size_t sz = size();
+        memcpy(dst, &sz, sizeof(sz));
+        dst += sizeof(sz);
+        if (set != nullptr) {
+            for (const auto& key : *set) {
+                memcpy(dst, &key, sizeof(T));
+                dst += sizeof(T);
+            }
+        } else {
+            for (const auto& key : *two_level_set) {
+                memcpy(dst, &key, sizeof(T));
+                dst += sizeof(T);
+            }
+        }
+    }
+
+    void deserialize_and_merge(const uint8_t* src, size_t len) {
+        size_t cnt = 0;
+        memcpy(&cnt, src, sizeof(cnt));
+        src += sizeof(cnt);
+        reserve(size() + cnt);
+        for (size_t i = 0; i < cnt; ++i) {
+            T key;
+            memcpy(&key, src, sizeof(T));
+            src += sizeof(T);
+            // no precomputed hash available here
+            emplace(key);
+        }
+    }
+
+    StdHash<T> hash_function() const { return StdHash<T>(); }
+
+    void prefetch_hash(size_t hash_value) {
+        if (set != nullptr) {
+            set->prefetch_hash(hash_value);
+        } else {
+            two_level_set->prefetch_hash(hash_value);
+        }
+    }
+
+#ifdef PHMAP_USE_CUSTOM_INFO_HANDLE
+    const auto& infoz() const { return set != nullptr ? set->infoz() : two_level_set->infoz(); }
+#endif
+
+    std::shared_ptr<OneLevelSet> set;
+    std::shared_ptr<TwoLevelSet> two_level_set;
+};
+
 template <LogicalType LT, LogicalType SumLT>
 struct DistinctAggregateState<LT, SumLT, StringLTGuard<LT>> {
     DistinctAggregateState() = default;
@@ -284,9 +403,9 @@ template <LogicalType LT, LogicalType SumLT>
 struct DistinctAggregateStateV2<LT, SumLT, FixedLengthLTGuard<LT>> {
     using T = RunTimeCppType<LT>;
     using SumType = RunTimeCppType<SumLT>;
-    using MyHashSet = HashSetWithAggStateAllocator<T>;
+    using MyHashSet = AdaptiveFixedHashSet<T>;
 
-    void update(T key) { set.insert(key); }
+    void update(T key) { set.emplace(key); }
 
     void update_with_hash([[maybe_unused]] MemPool* mempool, T key, size_t hash) { set.emplace_with_hash(hash, key); }
 
@@ -300,29 +419,9 @@ struct DistinctAggregateStateV2<LT, SumLT, FixedLengthLTGuard<LT>> {
         return size;
     }
 
-    void serialize(uint8_t* dst) const {
-        size_t size = set.size();
-        memcpy(dst, &size, sizeof(size));
-        dst += sizeof(size);
-        for (auto& key : set) {
-            memcpy(dst, &key, sizeof(key));
-            dst += sizeof(T);
-        }
-    }
+    void serialize(uint8_t* dst) const { set.serialize(dst); }
 
-    void deserialize_and_merge(const uint8_t* src, size_t len) {
-        size_t size = 0;
-        memcpy(&size, src, sizeof(size));
-        set.rehash(set.size() + size);
-
-        src += sizeof(size);
-        for (size_t i = 0; i < size; i++) {
-            T key;
-            memcpy(&key, src, sizeof(T));
-            set.insert(key);
-            src += sizeof(T);
-        }
-    }
+    void deserialize_and_merge(const uint8_t* src, size_t len) { set.deserialize_and_merge(src, len); }
 
     SumType sum_distinct() const {
         SumType sum{};
@@ -331,8 +430,14 @@ struct DistinctAggregateStateV2<LT, SumLT, FixedLengthLTGuard<LT>> {
             return sum;
         }
 
-        for (auto& key : set) {
-            sum += key;
+        if (set.set != nullptr) {
+            for (auto& key : *set.set) {
+                sum += key;
+            }
+        } else {
+            for (auto& key : *set.two_level_set) {
+                sum += key;
+            }
         }
         return sum;
     }
