@@ -101,6 +101,8 @@ struct DistinctAggregateState<LT, SumLT, FixedLengthLTGuard<LT>> {
         return sum;
     }
 
+    void merge_ptr(const uint8_t* ptr_data) {}
+
     MyHashSet set;
 };
 
@@ -273,6 +275,15 @@ struct DistinctAggregateState<LT, SumLT, StringLTGuard<LT>> {
         DCHECK(src == end);
     }
 
+    void deserialize_one_key_and_merge(MemPool* mem_pool, const uint8_t* src) {
+        uint32_t size = 0;
+        memcpy(&size, src, sizeof(uint32_t));
+        src += sizeof(uint32_t);
+        Slice raw_key(src, size);
+        // we only memcpy when the key is new
+        set.emplace(mem_pool, raw_key);
+    }
+
     AdaptiveSliceHashSet set;
 };
 
@@ -324,6 +335,21 @@ struct DistinctAggregateStateV2<LT, SumLT, FixedLengthLTGuard<LT>> {
         }
     }
 
+    void merge_ptr(const uint8_t* ptr_data) {
+        // 从指针数据中提取set指针并合并
+        uint8_t* set_ptr;
+        memcpy(&set_ptr, ptr_data, sizeof(uint8_t*));
+        MyHashSet* src_set = reinterpret_cast<MyHashSet*>(set_ptr);
+
+        if (set.size() == 0) {
+            // 如果目标set为空，直接交换
+            set = std::move(*src_set);
+        } else {
+            // 否则合并
+            set.merge(*src_set);
+        }
+    }
+
     SumType sum_distinct() const {
         SumType sum{};
         // Sum distinct doesn't support timestamp and date type
@@ -351,7 +377,9 @@ struct DistinctAggregateStateV2<LT, SumLT, FixedLengthLTGuard<LT>> {
 };
 
 template <LogicalType LT, LogicalType SumLT>
-struct DistinctAggregateStateV2<LT, SumLT, StringLTGuard<LT>> : public DistinctAggregateState<LT, SumLT> {};
+struct DistinctAggregateStateV2<LT, SumLT, StringLTGuard<LT>> : public DistinctAggregateState<LT, SumLT> {
+    void merge_ptr(const uint8_t* ptr_data) {}
+};
 
 // Dear god this template class as template parameter kills me!
 template <LogicalType LT, LogicalType SumLT,
@@ -441,6 +469,26 @@ public:
         DCHECK(column->is_binary());
         const auto* input_column = down_cast<const BinaryColumn*>(column);
         Slice slice = input_column->get_slice(row_num);
+
+        if (ctx->get_enable_single_node_agg_serde()) {
+            if constexpr (!IsSlice<T>) {
+                // 单机计划下，根据大小判断序列化类型
+                if (slice.size == sizeof(uint8_t*)) {
+                    // 大小正好是指针宽度，这是set指针序列化
+                    this->data(state).merge_ptr((const uint8_t*)slice.data);
+                    return;
+                } else if (slice.size > sizeof(uint8_t*)) {
+                    // 大小超过指针宽度，这是单个key的序列化
+                    // 对于固定长度类型，提取key并插入
+                    T key;
+                    memcpy(&key, slice.data, sizeof(T));
+                    this->data(state).update(key);
+                    return;
+                }
+                DCHECK(0);
+            }
+        }
+
         if constexpr (IsSlice<T>) {
             this->data(state).deserialize_and_merge(ctx->mem_pool(), (const uint8_t*)slice.data, slice.size);
         } else {
@@ -460,10 +508,25 @@ public:
     void serialize_to_column(FunctionContext* ctx, ConstAggDataPtr __restrict state, Column* to) const override {
         auto* column = down_cast<BinaryColumn*>(to);
         size_t old_size = column->get_bytes().size();
-        size_t new_size = old_size + this->data(state).serialize_size();
-        column->get_bytes().resize(new_size);
-        this->data(state).serialize(column->get_bytes().data() + old_size);
-        column->get_offset().emplace_back(new_size);
+        if (ctx->get_enable_single_node_agg_serde()) {
+            if constexpr (!IsSlice<T>) {
+                // 单机计划下，只序列化set的指针
+                size_t new_size = old_size + sizeof(uint8_t*);
+                column->get_bytes().resize(new_size);
+
+                // 序列化set的指针
+                const uint8_t* set_ptr = reinterpret_cast<const uint8_t*>(&this->data(state).set);
+                memcpy(column->get_bytes().data() + old_size, &set_ptr, sizeof(uint8_t*));
+
+                column->get_offset().emplace_back(new_size);
+            }
+        } else {
+            // 非单机计划，序列化整个set内容
+            size_t new_size = old_size + this->data(state).serialize_size();
+            column->get_bytes().resize(new_size);
+            this->data(state).serialize(column->get_bytes().data() + old_size);
+            column->get_offset().emplace_back(new_size);
+        }
     }
 
     void convert_to_serialize_format(FunctionContext* ctx, const Columns& src, size_t chunk_size,
@@ -473,35 +536,73 @@ public:
         Bytes& bytes = dst_column->get_bytes();
 
         const auto* src_column = down_cast<const ColumnType*>(src[0].get());
-        if constexpr (IsSlice<T>) {
-            bytes.reserve(chunk_size * (sizeof(uint32_t) + src_column->get_slice(0).size));
+
+        if (ctx->get_enable_single_node_agg_serde()) {
+            if constexpr (!IsSlice<T>) {
+                // 单机计划下，序列化每一行，但确保每行大小至少超过指针宽度
+                // 这样可以在merge时根据大小判断是set还是单个key
+                size_t min_size = sizeof(uint8_t*) + 1; // 指针宽度 + 1字节，确保超过指针宽度
+
+                if constexpr (IsSlice<T>) {
+                    // 对于string类型，需要确保每行大小超过指针宽度
+                    // 每行大小 = sizeof(uint32_t) + max(key.size, sizeof(uint8_t*) - sizeof(uint32_t) + 1)
+                    size_t min_key_size = sizeof(uint8_t*) - sizeof(uint32_t) + 1;
+                    bytes.reserve(chunk_size *
+                                  (sizeof(uint32_t) + std::max(src_column->get_slice(0).size, min_key_size)));
+                } else {
+                    // 对于定长类型，key_size只需要计算一次
+                    size_t key_size = std::max(sizeof(T), min_size);
+                    bytes.reserve(chunk_size * key_size);
+                }
+                dst_column->get_offset().resize(chunk_size + 1);
+
+                size_t old_size = bytes.size();
+                for (size_t i = 0; i < chunk_size; ++i) {
+                    T key = src_column->get_data()[i];
+
+                    // 对于定长类型，使用预计算的key_size
+                    size_t key_size = std::max(sizeof(T), min_size);
+
+                    size_t new_size = old_size + key_size;
+                    bytes.resize(new_size);
+                    memcpy(bytes.data() + old_size, &key, sizeof(T));
+
+                    dst_column->get_offset()[i + 1] = new_size;
+                    old_size = new_size;
+                }
+            }
         } else {
-            bytes.reserve(chunk_size * sizeof(T));
-        }
-        dst_column->get_offset().resize(chunk_size + 1);
-
-        size_t old_size = bytes.size();
-        for (size_t i = 0; i < chunk_size; ++i) {
+            // 非单机计划，保持原有逻辑
             if constexpr (IsSlice<T>) {
-                Slice key = src_column->get_slice(i);
-                size_t new_size = old_size + key.size + sizeof(uint32_t);
-                bytes.resize(new_size);
-
-                auto size = (uint32_t)key.size;
-                memcpy(bytes.data() + old_size, &size, sizeof(uint32_t));
-                old_size += sizeof(uint32_t);
-                memcpy(bytes.data() + old_size, key.data, key.size);
-                old_size += key.size;
-                dst_column->get_offset()[i + 1] = new_size;
+                bytes.reserve(chunk_size * (sizeof(uint32_t) + src_column->get_slice(0).size));
             } else {
-                T key = src_column->get_data()[i];
+                bytes.reserve(chunk_size * sizeof(T));
+            }
+            dst_column->get_offset().resize(chunk_size + 1);
 
-                size_t new_size = old_size + sizeof(T);
-                bytes.resize(new_size);
-                memcpy(bytes.data() + old_size, &key, sizeof(T));
+            size_t old_size = bytes.size();
+            for (size_t i = 0; i < chunk_size; ++i) {
+                if constexpr (IsSlice<T>) {
+                    Slice key = src_column->get_slice(i);
+                    size_t new_size = old_size + key.size + sizeof(uint32_t);
+                    bytes.resize(new_size);
 
-                dst_column->get_offset()[i + 1] = new_size;
-                old_size = new_size;
+                    auto size = (uint32_t)key.size;
+                    memcpy(bytes.data() + old_size, &size, sizeof(uint32_t));
+                    old_size += sizeof(uint32_t);
+                    memcpy(bytes.data() + old_size, key.data, key.size);
+                    old_size += key.size;
+                    dst_column->get_offset()[i + 1] = new_size;
+                } else {
+                    T key = src_column->get_data()[i];
+
+                    size_t new_size = old_size + sizeof(T);
+                    bytes.resize(new_size);
+                    memcpy(bytes.data() + old_size, &key, sizeof(T));
+
+                    dst_column->get_offset()[i + 1] = new_size;
+                    old_size = new_size;
+                }
             }
         }
     }

@@ -36,6 +36,9 @@ Status AggregateStreamingSinkOperator::prepare_local_state(RuntimeState* state) 
         _limited_mem_state.limited_memory_size = config::streaming_agg_limited_memory_size;
     }
     RETURN_IF_ERROR(_aggregator->open(state));
+    if (_aggregator->support_single_node_serde()) {
+        _aggregator->ref();
+    }
     return Status::OK();
 }
 

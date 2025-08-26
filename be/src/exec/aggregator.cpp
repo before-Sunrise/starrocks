@@ -47,6 +47,9 @@ namespace starrocks {
 static const std::unordered_set<std::string> ALWAYS_NULLABLE_RESULT_AGG_FUNCS = {
         "variance_samp", "var_samp", "stddev_samp", "covar_samp", "corr", "max_by_v2", "min_by_v2"};
 
+static const std::unordered_set<std::string> SUPPORT_SINGLE_NODE_SERDE = {"multi_distinct_count",
+                                                                          "multi_distinct_count2"};
+
 static const std::string AGG_STATE_UNION_SUFFIX = "_union";
 static const std::string AGG_STATE_MERGE_SUFFIX = "_merge";
 static const std::string AGG_STATE_IF_SUFFIX = "_if";
@@ -482,6 +485,13 @@ Status Aggregator::prepare(RuntimeState* state, ObjectPool* pool, RuntimeProfile
                                                 agg_fn_type.is_asc_order, agg_fn_type.nulls_first);
         if (state->query_options().__isset.group_concat_max_len) {
             _agg_fn_ctxs[i]->set_group_concat_max_len(state->query_options().group_concat_max_len);
+        }
+
+        if (state->query_options().__isset.enable_single_node_agg_serde &&
+            state->query_options().enable_single_node_agg_serde &&
+            SUPPORT_SINGLE_NODE_SERDE.contains(aggregate_functions[i].nodes[0].fn.name.function_name)) {
+            _agg_fn_ctxs[i]->set_enable_single_node_agg_serde(true);
+            _support_single_node_serde = true;
         }
         state->obj_pool()->add(_agg_fn_ctxs[i]);
         _agg_fn_ctxs[i]->set_mem_usage_counter(&_agg_state_mem_usage);

@@ -5338,6 +5338,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         tResult.setColumn_view_concat_bytes_limit(columnViewConcatRowsLimit);
         tResult.setEnable_hash_join_range_direct_mapping_opt(enableHashJoinRangeDirectMappingOpt);
 
+        if (GlobalStateMgr.getCurrentState().getNodeMgr().getClusterInfo().isSingleBackendAndComputeNode()) {
+            tResult.setEnable_single_node_agg_serde(true);
+        }
+
         return tResult;
     }
 

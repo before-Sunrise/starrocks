@@ -178,6 +178,11 @@ public:
 
     std::unique_ptr<NgramBloomFilterState>& get_ngram_state() { return _ngramState; }
 
+    bool get_enable_single_node_agg_serde() const { return enable_single_node_agg_serde; }
+    void set_enable_single_node_agg_serde(bool enable_single_node_agg_serde) {
+        this->enable_single_node_agg_serde = enable_single_node_agg_serde;
+    }
+
 private:
     friend class ExprContext;
 
@@ -224,7 +229,7 @@ private:
     std::vector<bool> _nulls_first;
     bool _is_distinct = false;
     ssize_t group_concat_max_len = 1024;
-
+    bool enable_single_node_agg_serde = false;
     // used for ngram bloom filter to speed up some function
     std::unique_ptr<NgramBloomFilterState> _ngramState;
 };

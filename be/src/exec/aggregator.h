@@ -535,7 +535,11 @@ protected:
 
     pipeline::PipeObservable _pip_observable;
 
+    bool _support_single_node_serde = false;
+
 public:
+    bool support_single_node_serde() const { return _support_single_node_serde; }
+
     void build_hash_map(size_t chunk_size, bool agg_group_by_with_limit = false);
     void build_hash_map(size_t chunk_size, std::atomic<int64_t>& shared_limit_countdown, bool agg_group_by_with_limit);
     void build_hash_map_with_selection(size_t chunk_size);
