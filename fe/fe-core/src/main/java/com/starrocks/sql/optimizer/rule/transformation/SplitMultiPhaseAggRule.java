@@ -22,6 +22,7 @@ import com.starrocks.analysis.Expr;
 import com.starrocks.catalog.Function;
 import com.starrocks.catalog.FunctionSet;
 import com.starrocks.catalog.Type;
+import com.starrocks.common.FeConstants;
 import com.starrocks.qe.ConnectContext;
 import com.starrocks.sql.common.ErrorType;
 import com.starrocks.sql.common.StarRocksPlannerException;
@@ -349,6 +350,12 @@ public class SplitMultiPhaseAggRule extends SplitAggregateRule {
         }
         if (ConnectContext.get().getSessionVariable().getNewPlannerAggStage() == THREE_STAGE.ordinal()) {
             return true;
+        }
+
+        // for single node, we prefer two phase agg when partitionByColumns between 1/2 agg is not skew.
+        // and prefer four phase agg when partitionByColumns is skew
+        if (ConnectContext.get().getAliveExecutionNodesNumber() == 1 && !FeConstants.runningUnitTest) {
+            return false;
         }
 
         Statistics inputStatistics = input.getGroupExpression().inputAt(0).getStatistics();
