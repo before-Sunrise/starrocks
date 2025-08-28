@@ -119,6 +119,7 @@ public class StatisticUtils {
         context.getSessionVariable().setCboCteReuse(true);
         context.getSessionVariable().setCboCTERuseRatio(0);
         context.getSessionVariable().setEnablePlanSerializeConcurrently(false);
+        context.getSessionVariable().setEnablePredicateColLateMaterialize(false);
 
         WarehouseManager manager = GlobalStateMgr.getCurrentState().getWarehouseMgr();
         Warehouse warehouse = manager.getBackgroundWarehouse();
