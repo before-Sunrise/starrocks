@@ -348,7 +348,9 @@ struct TQueryOptions {
   191: optional i64 column_view_concat_bytes_limit;
   // whether enable predicate column late materialization
   192: optional bool enable_predicate_col_late_materialize;
-  193: optional bool enable_single_node_agg_serde;
+  // whether use crc32_hash instead of fnv_hash for exchange sink operator hash partitioning
+  193: optional bool use_crc32_hash_for_exchange;
+  194: optional bool enable_single_node_agg_serde;
 }
 
 // A scan range plus the parameters needed to execute that scan.
