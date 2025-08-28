@@ -348,8 +348,9 @@ UNION_VALUE_GUARD(LogicalType, IntegralLTGuard, lt_is_integral, lt_is_boolean_st
 UNION_VALUE_GUARD(LogicalType, ArithmeticLTGuard, lt_is_arithmetic, lt_is_boolean_struct, lt_is_integer_struct,
                   lt_is_float_struct)
 
-UNION_VALUE_GUARD(LogicalType, AvgDoubleLTGuard, lt_is_avg_double, lt_is_boolean_struct, lt_is_integer_struct,
-                  lt_is_float_struct, lt_is_date_or_datetime_struct)
+UNION_VALUE_GUARD(LogicalType, AvgDoubleLTGuard, lt_is_avg_double, lt_is_float_struct, lt_is_date_or_datetime_struct)
+
+UNION_VALUE_GUARD(LogicalType, AvgBigIntLTGuard, lt_is_avg_bigint, lt_is_integer_struct, lt_is_boolean_struct)
 
 UNION_VALUE_GUARD(LogicalType, AvgDecimal64LTGuard, lt_is_avg_decimal64, lt_is_sum_decimal64_struct)
 

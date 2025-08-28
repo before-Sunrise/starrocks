@@ -54,6 +54,9 @@ template <LogicalType LT>
 inline constexpr LogicalType ImmediateAvgResultLT<LT, AvgDoubleLTGuard<LT>> = TYPE_DOUBLE;
 
 template <LogicalType LT>
+inline constexpr LogicalType ImmediateAvgResultLT<LT, AvgBigIntLTGuard<LT>> = TYPE_BIGINT;
+
+template <LogicalType LT>
 inline constexpr LogicalType ImmediateAvgResultLT<LT, AvgDecimal64LTGuard<LT>> = TYPE_DECIMAL64;
 
 // Only for compile
