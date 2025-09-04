@@ -36,6 +36,8 @@ public:
         return _iter->decode_dict_codes(codes, words);
     }
 
+    Status fetch_values_by_rowid(const Column& rowids, Column* values) {}
+
     Status decode_values_by_rowid(const Column& rowids, Column* values) {
         DCHECK(_iter != nullptr);
         return _iter->fetch_values_by_rowid(rowids, values);

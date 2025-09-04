@@ -295,7 +295,7 @@ public:
             auto nc = down_cast<NullableColumn*>(column);
             RETURN_IF_ERROR(_data_decoder->read_by_rowids(_first_ordinal, rowids, count, nc->data_column().get()));
             std::vector<uint8_t> null_flags;
-            for (size_t i = 0;i < *count;i ++) {
+            for (size_t i = 0; i < *count; i++) {
                 ordinal_t ord = rowids[i] - _first_ordinal;
                 DCHECK_LT(ord, _num_rows);
                 null_flags.emplace_back(_null_flags[ord]);
@@ -316,6 +316,25 @@ public:
             nc->update_has_null();
         }
         _offset_in_page += *count;
+        return Status::OK();
+    }
+
+    Status read_dict_codes_by_rowids(Column* column, const rowid_t* rowids, size_t* count) override {
+        if (_null_flags.size() == 0) {
+            RETURN_IF_ERROR(_data_decoder->read_dict_codes_by_rowids(_first_ordinal, rowids, count, column));
+        } else {
+            auto nc = down_cast<NullableColumn*>(column);
+            RETURN_IF_ERROR(
+                    _data_decoder->read_dict_codes_by_rowids(_first_ordinal, rowids, count, nc->data_column().get()));
+            std::vector<uint8_t> null_flags;
+            for (size_t i = 0; i < *count; i++) {
+                ordinal_t ord = rowids[i] - _first_ordinal;
+                DCHECK_LT(ord, _num_rows);
+                null_flags.emplace_back(_null_flags[ord]);
+            }
+            nc->null_column()->append_numbers(null_flags.data(), null_flags.size());
+            nc->update_has_null();
+        }
         return Status::OK();
     }
 

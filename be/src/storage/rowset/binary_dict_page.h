@@ -133,7 +133,11 @@ public:
 
     Status next_batch(const SparseRange<>& range, Column* dst) override;
 
-    Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count, Column* column) override;
+    Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count,
+                          Column* column) override;
+
+    Status read_dict_codes_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count,
+                                     Column* dst);
 
     uint32_t count() const override { return _data_page_decoder->count(); }
 

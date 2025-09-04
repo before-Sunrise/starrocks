@@ -655,7 +655,9 @@ Status ScalarColumnIterator::_fetch_by_rowid(const rowid_t* rowids, size_t size,
     return Status::OK();
 }
 
-Status ScalarColumnIterator::_fetch_by_rowid_v2(const rowid_t* rowids, size_t size, Column* values) {
+template <typename PageParseFunc>
+Status ScalarColumnIterator::_fetch_by_rowid_v2(const rowid_t* rowids, size_t size, Column* values,
+                                                PageParseFunc&& page_parse) {
     DCHECK(std::is_sorted(rowids, rowids + size));
     RETURN_IF(size == 0, Status::OK());
     size_t prev_bytes = values->byte_size();
@@ -665,22 +667,25 @@ Status ScalarColumnIterator::_fetch_by_rowid_v2(const rowid_t* rowids, size_t si
         RETURN_IF_ERROR(seek_to_ordinal(*rowids));
         contain_deleted_row = contain_deleted_row || _contains_deleted_row(_page->page_index());
         size_t nread = size - read_count;
-        RETURN_IF_ERROR(_page->read_by_rowds(values, rowids, &nread));
+        RETURN_IF_ERROR(page_parse(values, rowids, &nread));
         read_count += nread;
         rowids += nread;
     }
-    values->set_delete_state(contain_deleted_row ? DEL_PARTIAL_SATISFIED: DEL_NOT_SATISFIED);
+    values->set_delete_state(contain_deleted_row ? DEL_PARTIAL_SATISFIED : DEL_NOT_SATISFIED);
     _opts.stats->bytes_read += static_cast<int64_t>(values->byte_size() - prev_bytes);
     return Status::OK();
 }
 
 Status ScalarColumnIterator::fetch_values_by_rowid(const rowid_t* rowids, size_t size, Column* values) {
-    return _fetch_by_rowid_v2(rowids, size, values);
+    auto page_parse = [&](size_t* count) { return _page->read_by_rowds(values, rowids, count); };
+    return _fetch_by_rowid_v2(rowids, size, values, page_parse);
 }
 
 Status ScalarColumnIterator::fetch_dict_codes_by_rowid(const rowid_t* rowids, size_t size, Column* values) {
-    auto page_parse = [&](Column* column, size_t* count) { return _page->read_dict_codes(column, count); };
-    return _fetch_by_rowid(rowids, size, values, page_parse);
+    auto page_parse = [&](Column* column, size_t* count) {
+        return _page->read_dict_codes_by_rowids(values, rowids, count);
+    };
+    return _fetch_by_rowid_v2(rowids, size, values, page_parse);
 }
 
 int ScalarColumnIterator::dict_size() {

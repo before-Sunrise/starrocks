@@ -1710,24 +1710,32 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
 
     bool may_has_del_row = chunk->delete_state() != DEL_NOT_SATISFIED;
     for (int i = 1; i < predicate_order.size(); i++) {
-        const ColumnId current_column = predicate_order[i];
+        const ColumnId current_column_id = predicate_order[i];
         // read column by row id if not read yet
         const auto* ordinals = down_cast<FixedLengthColumn<rowid_t>*>(rowid_column.get());
-        ColumnPtr& col = chunk->get_column_by_id(current_column);
+        ColumnPtr& col = chunk->get_column_by_id(current_column_id);
         current_columns.emplace_back(col);
         col->reserve(ordinals->size());
         col->resize(0);
         {
             SCOPED_RAW_TIMER(&_opts.stats->late_materialize_ns);
-            RETURN_IF_ERROR(_column_decoders[current_column].decode_values_by_rowid(*ordinals, col.get()));
+            // for dict column, no matter it's global or local
+            // we should get its local dict values in predicate evaluation
+            // _decode_dict_codes will translate dict value into string if this is local dict
+            // otherwise will translate local dict value into global dict value
+            if (_context->_is_dict_column[current_column_id]) {
+                _context->_column_iterators[current_column_id]->fetch_dict_codes_by_rowid(*ordinals, col.get());
+            } else {
+                RETURN_IF_ERROR(_column_decoders[current_column_id].decode_values_by_rowid(*ordinals, col.get()));
+            }
         }
         DCHECK_EQ(ordinals->size(), col->size());
         may_has_del_row |= (col->delete_state() != DEL_NOT_SATISFIED);
 
         // evaluate predicate on this column, including expr and non-expr predicates
-        ASSIGN_OR_RETURN(chunk_size,
-                         _filter_by_compound_and_predicates(chunk, rowid, 0, chunk_size,
-                                                            column_predicate_map.at(current_column), current_columns));
+        ASSIGN_OR_RETURN(chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk_size,
+                                                                        column_predicate_map.at(current_column_id),
+                                                                        current_columns));
     }
 
     // DCHECK(current_columns.size() == chunk->num_columns());

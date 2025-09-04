@@ -382,6 +382,14 @@ Status BinaryDictPageDecoder<Type>::next_dict_codes(size_t* n, Column* dst) {
 }
 
 template <LogicalType Type>
+Status BinaryDictPageDecoder<Type>::read_dict_codes_by_rowids(const ordinal_t first_ordinal_in_page,
+                                                              const rowid_t* rowids, size_t* count, Column* dst) {
+    DCHECK(_encoding_type == DICT_ENCODING);
+    DCHECK(_parsed);
+    return _data_page_decoder->read_by_rowids(first_ordinal_in_page, rowids, count, dst);
+}
+
+template <LogicalType Type>
 Status BinaryDictPageDecoder<Type>::next_dict_codes(const SparseRange<>& range, Column* dst) {
     DCHECK(_encoding_type == DICT_ENCODING);
     DCHECK(_parsed);

@@ -215,8 +215,13 @@ public:
     // NOTE: The default implementation is not high-performant.
     virtual Status fetch_values_by_rowid(const rowid_t* rowids, size_t size, Column* values);
 
+    // if column is low dictionary column
+    // this interface will return string if is local dictionary column
+    // and return glocal dict value if is global dictionary column
     Status fetch_values_by_rowid(const Column& rowids, Column* values);
 
+    // this interface will return dict value with given rowids without any translate
+    // just like next_dict_codes but with given rowids
     virtual Status fetch_dict_codes_by_rowid(const rowid_t* rowids, size_t size, Column* values) {
         return Status::NotSupported("");
     }
