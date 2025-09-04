@@ -1647,8 +1647,23 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         }
     }
 
+    // if column predicate is always true for string column or already used by bitmap index
+    // it will be removed from predicate tree
+    // but we still need to read it
+    // so we add the columnId into column_predicate_map with empty ColumnPredicates, so it will only read without filter
+    if (predicate_order.size() < _context->_column_iterators.size()) {
+        DCHECK(_context->_column_ids_to_column_iterators.size() + 1 == _context->_column_iterators.size());
+        for (auto pair : _context->_column_ids_to_column_iterators) {
+            if (!column_predicate_map.contains(pair.first)) {
+                predicate_order.emplace_back(pair.first);
+                column_predicate_map.emplace(pair.first, std::vector<const ColumnPredicate*>());
+            }
+        }
+    }
+
     const ColumnId first_column_id = predicate_order.front();
     _context->_column_iterators_for_predicate_late_materialize.clear();
+
     _context->_column_iterators_for_predicate_late_materialize.emplace_back(
             _context->_column_ids_to_column_iterators[first_column_id]);
     _context->_column_id_for_predicate_late_materialize.emplace_back(first_column_id);
@@ -1685,10 +1700,10 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         }
     }
 
-    size_t chunk_size = chunk->num_rows();
+    size_t chunk_size = first_col->size();
 
     if (expr_column_predicate_map.contains(first_column_id)) {
-        ASSIGN_OR_RETURN(chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk->num_rows(),
+        ASSIGN_OR_RETURN(chunk_size, _filter_by_compound_and_predicates(chunk, rowid, 0, chunk_size,
                                                                         expr_column_predicate_map.at(first_column_id),
                                                                         current_columns));
     }
@@ -1711,11 +1726,11 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
 
         // evaluate predicate on this column, including expr and non-expr predicates
         ASSIGN_OR_RETURN(chunk_size,
-                         _filter_by_compound_and_predicates(chunk, rowid, 0, chunk->num_rows(),
+                         _filter_by_compound_and_predicates(chunk, rowid, 0, chunk_size,
                                                             column_predicate_map.at(current_column), current_columns));
     }
 
-    DCHECK(current_columns.size() == chunk->num_columns());
+    // DCHECK(current_columns.size() == chunk->num_columns());
 
     chunk->check_or_die();
 
@@ -2125,6 +2140,7 @@ Status SegmentIterator::_build_context(ScanContext* ctx) {
 
             if (ctx->_skip_dict_decode_indexes[i]) {
                 ctx->_dict_decode_schema.append(f2);
+                ctx->_column_ids_to_column_iterators.emplace(cid, ctx->_column_iterators.back());
                 continue;
             }
 
