@@ -118,6 +118,8 @@ public:
 
     virtual size_t read_null_count() { return 0; }
 
+    virtual Status read_dict_codes_by_rowids(Column* column, const rowid_t* rowids, size_t* count) = 0;
+
 protected:
     uint32_t _page_index{0};
     uint64_t _num_rows{0};

@@ -91,8 +91,14 @@ public:
         return Status::NotSupported("PageDecoder Not Support");
     }
 
-    virtual Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count, Column* column) {
+    virtual Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count,
+                                  Column* column) {
         return Status::NotSupported("PageDecoder Not Support");
+    }
+
+    virtual Status read_dict_codes_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids,
+                                             size_t* count, Column* dst) {
+        return Status::NotSupported("PageDecoder Doesn't Support read_dict_codes_by_rowids");
     }
 
     // Return the number of elements in this page.

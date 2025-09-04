@@ -135,7 +135,8 @@ private:
     template <typename ParseFunc>
     Status _fetch_by_rowid(const rowid_t* rowids, size_t size, Column* values, ParseFunc&& page_parse);
 
-    Status _fetch_by_rowid_v2(const rowid_t* rowids, size_t size, Column* values);
+    template <typename PageParseFunc>
+    Status _fetch_by_rowid_v2(const rowid_t* rowids, size_t size, Column* values, PageParseFunc&& page_parse);
 
     template <LogicalType Type>
     Status _load_dict_page();
