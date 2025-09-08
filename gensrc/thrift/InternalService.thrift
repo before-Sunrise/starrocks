@@ -351,6 +351,8 @@ struct TQueryOptions {
   // whether use crc32_hash instead of fnv_hash for exchange sink operator hash partitioning
   193: optional bool use_crc32_hash_for_exchange;
   194: optional bool enable_single_node_agg_serde;
+  // whether enable predicate order sorting based on column type complexity
+  195: optional bool enable_predicate_order_sorting = false;
 }
 
 // A scan range plus the parameters needed to execute that scan.

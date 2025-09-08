@@ -310,6 +310,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     // open predicate reorder
     public static final String ENABLE_PREDICATE_REORDER = "enable_predicate_reorder";
+    
+    // enable predicate order sorting based on column type complexity
+    public static final String ENABLE_PREDICATE_ORDER_SORTING = "enable_predicate_order_sorting";
 
     public static final String ENABLE_FILTER_UNUSED_COLUMNS_IN_SCAN_STAGE =
             "enable_filter_unused_columns_in_scan_stage";
@@ -1441,6 +1444,9 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
 
     @VariableMgr.VarAttr(name = ENABLE_PREDICATE_REORDER)
     private boolean enablePredicateReorder = false;
+    
+    @VariableMgr.VarAttr(name = ENABLE_PREDICATE_ORDER_SORTING)
+    private boolean enablePredicateOrderSorting = false;
 
     @VariableMgr.VarAttr(name = ENABLE_FILTER_UNUSED_COLUMNS_IN_SCAN_STAGE)
     private boolean enableFilterUnusedColumnsInScanStage = true;
@@ -3495,6 +3501,10 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
     public void disablePredicateReorder() {
         this.enablePredicateReorder = false;
     }
+    
+    public boolean isEnablePredicateOrderSorting() {
+        return enablePredicateOrderSorting;
+    }
 
     public void enablePredicateReorder() {
         this.enablePredicateReorder = true;
@@ -5274,6 +5284,7 @@ public class SessionVariable implements Serializable, Writable, Cloneable {
         tResult.setRpc_http_min_size(rpcHttpMinSize);
         tResult.setInterleaving_group_size(interleavingGroupSize);
         tResult.setEnable_predicate_col_late_materialize(enablePredicateColLateMaterialize);
+        tResult.setEnable_predicate_order_sorting(enablePredicateOrderSorting);
         tResult.setUse_crc32_hash_for_exchange(useCrc32HashForExchange);
 
         TCompressionType loadCompressionType =

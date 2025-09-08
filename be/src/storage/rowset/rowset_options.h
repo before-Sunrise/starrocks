@@ -100,6 +100,7 @@ public:
     TTableSampleOptions sample_options;
     bool enable_join_runtime_filter_pushdown = false;
     bool enable_predicate_col_late_materialize = false;
+    bool enable_predicate_order_sorting = false;
 };
 
 } // namespace starrocks

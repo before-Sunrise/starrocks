@@ -212,6 +212,7 @@ StatusOr<std::vector<ChunkIteratorPtr>> Rowset::read(const Schema& schema, const
     seg_options.column_access_paths = options.column_access_paths;
     seg_options.has_preaggregation = options.has_preaggregation;
     seg_options.enable_predicate_col_late_materialize = options.enable_predicate_col_late_materialize;
+    seg_options.enable_predicate_order_sorting = options.enable_predicate_order_sorting;
     if (options.is_primary_keys) {
         seg_options.is_primary_keys = true;
         seg_options.delvec_loader = std::make_shared<LakeDelvecLoader>(

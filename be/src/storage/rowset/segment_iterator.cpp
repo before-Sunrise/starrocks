@@ -1686,12 +1686,15 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
                type == TYPE_VARBINARY;    // VARBINARY
     };
 
-    std::stable_sort(predicate_order.begin(), predicate_order.end(),
-                     [&is_complex_type](ColumnId a, ColumnId b) -> bool {
-                         bool a_is_complex = is_complex_type(a);
-                         bool b_is_complex = is_complex_type(b);
-                         return !a_is_complex && b_is_complex;
-                     });
+    // Only sort predicates if the session variable is enabled
+    if (_opts.enable_predicate_order_sorting) {
+        std::stable_sort(predicate_order.begin(), predicate_order.end(),
+                         [&is_complex_type](ColumnId a, ColumnId b) -> bool {
+                             bool a_is_complex = is_complex_type(a);
+                             bool b_is_complex = is_complex_type(b);
+                             return !a_is_complex && b_is_complex;
+                         });
+    }
 
     const ColumnId first_column_id = predicate_order.front();
     _context->_column_iterators_for_predicate_late_materialize.clear();
