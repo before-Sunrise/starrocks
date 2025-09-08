@@ -231,6 +231,11 @@ public:
         return count;
     }
 
+    Status read_dict_codes_by_rowids(Column* column, const rowid_t* rowids, size_t* count) override {
+        return Status::NotSupported("read_dict_codes_by_rowids not supported");
+    }
+
+
 private:
     friend Status parse_page_v1(std::unique_ptr<ParsedPage>* result, PageHandle handle, const Slice& body,
                                 const DataPageFooterPB& footer, const EncodingInfo* encoding,

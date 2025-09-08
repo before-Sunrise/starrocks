@@ -677,12 +677,14 @@ Status ScalarColumnIterator::_fetch_by_rowid_v2(const rowid_t* rowids, size_t si
 }
 
 Status ScalarColumnIterator::fetch_values_by_rowid(const rowid_t* rowids, size_t size, Column* values) {
-    auto page_parse = [&](size_t* count) { return _page->read_by_rowds(values, rowids, count); };
+    auto page_parse = [&](Column* values, const rowid_t* rowids, size_t* count) {
+        return _page->read_by_rowds(values, rowids, count);
+    };
     return _fetch_by_rowid_v2(rowids, size, values, page_parse);
 }
 
 Status ScalarColumnIterator::fetch_dict_codes_by_rowid(const rowid_t* rowids, size_t size, Column* values) {
-    auto page_parse = [&](Column* column, size_t* count) {
+    auto page_parse = [&](Column* values, const rowid_t* rowids, size_t* count) {
         return _page->read_dict_codes_by_rowids(values, rowids, count);
     };
     return _fetch_by_rowid_v2(rowids, size, values, page_parse);
