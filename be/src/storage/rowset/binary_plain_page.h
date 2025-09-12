@@ -235,6 +235,10 @@ public:
     Status read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids, size_t* count,
                           Column* column) override;
 
+    Status next_batch_with_filter(Column* column, const SparseRange<>& range,
+                                  const std::vector<const ColumnPredicate*>& compound_and_predicates, NullColumn* null,
+                                  uint8_t* selection, uint16_t* selected_idx, bool* data_filtered) override;
+
     uint32_t count() const override {
         DCHECK(_parsed);
         return _num_elems;
@@ -247,9 +251,7 @@ public:
 
     EncodingTypePB encoding_type() const override { return PLAIN_ENCODING; }
 
-    size_t estimate_columns_size() const {
-        return _estimated_column_size;
-    }
+    size_t estimate_columns_size() const { return _estimated_column_size; }
 
     Slice string_at_index(uint32_t idx) const {
         const uint32_t start_offset = offset(idx);
@@ -298,6 +300,10 @@ private:
         return decode_fixed32_le(p);
 #endif
     }
+
+    bool next_range_with_filter(uint32_t idx, uint32_t end, Column* dst,
+                                const std::vector<const ColumnPredicate*>& compound_and_predicates, uint8_t* null,
+                                uint8_t* selection, uint16_t* selected_idx);
 
     Slice _data;
     bool _parsed;

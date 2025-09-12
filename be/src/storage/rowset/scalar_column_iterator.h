@@ -61,6 +61,10 @@ public:
 
     Status next_batch(const SparseRange<>& range, Column* dst) override;
 
+    Status next_batch_with_filter(const SparseRange<>& range, Column* dst,
+                                  const std::vector<const ColumnPredicate*>& compound_and_predicates,
+                                  Buffer<uint8_t>* selection, Buffer<uint16_t>* selected_idx, bool* data_filtered);
+
     ordinal_t get_current_ordinal() const override { return _current_ordinal; }
 
     ordinal_t num_rows() const override { return _reader->num_rows(); }
@@ -142,6 +146,9 @@ private:
     Status _load_dict_page();
 
     bool _contains_deleted_row(uint32_t page_index) const;
+
+    template <typename ReadFunc>
+    Status _next_batch_template(const SparseRange<>& range, Column* dst, ReadFunc&& read_func);
 
     ColumnReader* _reader;
 

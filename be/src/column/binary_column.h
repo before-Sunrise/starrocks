@@ -61,6 +61,9 @@ public:
         }
     }
 
+    explicit BinaryColumnBase(const void* data, size_t length, Offsets offsets)
+            : _data(data), _length(length), _is_view(true), _offsets(std::move(offsets)) {}
+
     // NOTE: do *NOT* copy |_slices|
     BinaryColumnBase(const BinaryColumnBase<T>& rhs) : _bytes(rhs._bytes), _offsets(rhs._offsets) {}
 
@@ -136,6 +139,22 @@ public:
 
     Slice get_slice(size_t idx) const {
         return Slice(_bytes.data() + _offsets[idx], _offsets[idx + 1] - _offsets[idx]);
+    }
+
+    const char* get_string_begin() const {
+        if (_is_view) {
+            return reinterpret_cast<const char*>(_data);
+        } else {
+            return reinterpret_cast<const char*>(_bytes.data());
+        }
+    }
+
+    const char* get_string_end() const {
+        if (_is_view) {
+            return reinterpret_cast<const char*>(_data + _length);
+        } else {
+            return reinterpret_cast<const char*>(_bytes.data() + _bytes.size());
+        }
     }
 
     void check_or_die() const override;
@@ -368,6 +387,10 @@ private:
 
     Bytes _bytes;
     Offsets _offsets;
+
+    const void* _data{};
+    size_t _length{};
+    bool _is_view = false;
 
     mutable Container _slices;
     mutable bool _slices_cache = false;

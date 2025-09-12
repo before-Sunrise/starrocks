@@ -235,6 +235,11 @@ public:
         return Status::NotSupported("read_dict_codes_by_rowids not supported");
     }
 
+    Status read_with_filter(Column* column, const SparseRange<>& range,
+                            const std::vector<const ColumnPredicate*>& compound_and_predicates, uint8_t* selection,
+                            uint16_t* selected_idx, bool* data_filtered) override {
+        return Status::NotSupported("read_with_filter not supported");
+    }
 
 private:
     friend Status parse_page_v1(std::unique_ptr<ParsedPage>* result, PageHandle handle, const Slice& body,
@@ -289,6 +294,22 @@ public:
                 size -= r.span_size();
             }
             nc->update_has_null();
+        }
+        return Status::OK();
+    }
+
+    Status read_with_filter(Column* column, const SparseRange<>& range,
+                            const std::vector<const ColumnPredicate*>& compound_and_predicates, uint8_t* selection,
+                            uint16_t* selected_idx, bool* data_filtered) override {
+        DCHECK_EQ(_offset_in_page, range.begin());
+        DCHECK_EQ(_offset_in_page, _data_decoder->current_index());
+        if (_null_flags.size() == 0) {
+            RETURN_IF_ERROR(_data_decoder->next_batch_with_filter(column, range, compound_and_predicates, nullptr,
+                                                                  selection, selected_idx, data_filtered));
+            _offset_in_page = range.end();
+        } else {
+            *data_filtered = false;
+            return read(column, range);
         }
         return Status::OK();
     }

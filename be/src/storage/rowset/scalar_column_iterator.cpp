@@ -269,6 +269,14 @@ Status ScalarColumnIterator::null_count(size_t* count) {
 }
 
 Status ScalarColumnIterator::next_batch(const SparseRange<>& range, Column* dst) {
+    auto read_func = [](ParsedPage* page, Column* column, const SparseRange<>& read_range) -> Status {
+        return page->read(column, read_range);
+    };
+    return _next_batch_template(range, dst, read_func);
+}
+
+template <typename ReadFunc>
+Status ScalarColumnIterator::_next_batch_template(const SparseRange<>& range, Column* dst, ReadFunc&& read_func) {
     size_t prev_bytes = dst->byte_size();
     SparseRangeIterator<> iter = range.new_iterator();
     size_t end_ord = _page->first_ordinal() + _page->num_rows();
@@ -320,7 +328,7 @@ Status ScalarColumnIterator::next_batch(const SparseRange<>& range, Column* dst)
             // current page have been added in read range
             // read current page data first
             contain_deleted_row = contain_deleted_row || _contains_deleted_row(_page->page_index());
-            RETURN_IF_ERROR(_page->read(dst, read_range));
+            RETURN_IF_ERROR(read_func(_page.get(), dst, read_range));
             read_range.clear();
         }
     }
@@ -328,13 +336,32 @@ Status ScalarColumnIterator::next_batch(const SparseRange<>& range, Column* dst)
     if (!read_range.empty()) {
         // read data left if read range is not empty
         contain_deleted_row = contain_deleted_row || _contains_deleted_row(_page->page_index());
-        RETURN_IF_ERROR(_page->read(dst, read_range));
+        RETURN_IF_ERROR(read_func(_page.get(), dst, read_range));
         read_range.clear();
     }
     dst->set_delete_state(contain_deleted_row ? DEL_PARTIAL_SATISFIED : DEL_NOT_SATISFIED);
     _opts.stats->bytes_read += (dst->byte_size() - prev_bytes);
 
     return Status::OK();
+}
+
+Status ScalarColumnIterator::next_batch_with_filter(const SparseRange<>& range, Column* dst,
+                                                    const std::vector<const ColumnPredicate*>& compound_and_predicates,
+                                                    Buffer<uint8_t>* selection, Buffer<uint16_t>* selected_idx,
+                                                    bool* data_filtered) {
+    uint8_t* cur_sel = selection->data();
+    uint16_t* cur_idx = selected_idx->data();
+    auto read_func = [&](ParsedPage* page, Column* column, const SparseRange<>& read_range) -> Status {
+        RETURN_IF_ERROR(
+                page->read_with_filter(column, read_range, compound_and_predicates, cur_sel, cur_idx, data_filtered));
+        // Update selection and selected_idx pointers to point to the next position
+        // after processing this page's data
+        size_t processed_rows = read_range.span_size();
+        cur_sel += processed_rows;
+        cur_idx += processed_rows;
+        return Status::OK();
+    };
+    return _next_batch_template(range, dst, read_func);
 }
 
 Status ScalarColumnIterator::_load_next_page(bool* eos) {

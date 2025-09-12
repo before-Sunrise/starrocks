@@ -120,6 +120,10 @@ public:
 
     virtual Status read_dict_codes_by_rowids(Column* column, const rowid_t* rowids, size_t* count) = 0;
 
+    virtual Status read_with_filter(Column* column, const SparseRange<>& range,
+                                    const std::vector<const ColumnPredicate*>& compound_and_predicates,
+                                    uint8_t* selection, uint16_t* selected_idx, bool* data_filtered) = 0;
+
 protected:
     uint32_t _page_index{0};
     uint64_t _num_rows{0};

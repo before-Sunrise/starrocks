@@ -63,6 +63,15 @@ public:
         return Status::OK();
     }
 
+    Status next_batch_with_filter(const SparseRange<>& range, Column* dst,
+                                  const std::vector<const ColumnPredicate*>& compound_and_predicates,
+                                  Buffer<uint8_t>* selection, Buffer<uint16_t>* selected_idx, bool* data_filtered) {
+        RETURN_IF_ERROR(next_batch(range, dst));
+        if (*data_filtered) {
+            dst->filter(*selection);
+        }
+    }
+
     Status next_batch(const SparseRange<>& range, Column* dst) override {
         SparseRangeIterator<> iter = range.new_iterator();
         size_t to_read = range.span_size();

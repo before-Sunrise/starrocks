@@ -300,6 +300,18 @@ Status BinaryDictPageDecoder<Type>::next_batch(const SparseRange<>& range, Colum
 }
 
 template <LogicalType Type>
+Status BinaryDictPageDecoder<Type>::next_batch_with_filter(
+        Column* column, const SparseRange<>& range, const std::vector<const ColumnPredicate*>& compound_and_predicates,
+        NullColumn* null, uint8_t* selection, uint16_t* selected_idx, bool* data_filtered) {
+    if (_encoding_type == PLAIN_ENCODING) {
+        return _data_page_decoder->next_batch_with_filter(column, range, compound_and_predicates, null, selection,
+                                                          selected_idx, data_filtered);
+    }
+    *data_filtered = false;
+    return next_batch(range, column);
+}
+
+template <LogicalType Type>
 Status BinaryDictPageDecoder<Type>::read_by_rowids(const ordinal_t first_ordinal_in_page, const rowid_t* rowids,
                                                    size_t* count, Column* column) {
     if (_encoding_type == PLAIN_ENCODING) {
