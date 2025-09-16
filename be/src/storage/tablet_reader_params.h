@@ -110,6 +110,9 @@ struct TabletReaderParams {
     bool enable_predicate_col_late_materialize = false;
     bool enable_predicate_order_sorting = false;
 
+    // Whether the scan operator has TopN runtime filter
+    bool has_topn_filter = false;
+
 public:
     std::string to_string() const;
 };

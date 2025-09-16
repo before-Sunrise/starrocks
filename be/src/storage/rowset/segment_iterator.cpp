@@ -472,6 +472,7 @@ private:
     int _result_order;
     bool _use_ivfpq;
     bool _enable_predicate_col_late_materialize;
+    bool _has_topn_filter;
 
     Status _init_reader_from_file(const std::string& index_path, const std::shared_ptr<TabletIndex>& tablet_index_meta,
                                   const std::map<std::string, std::string>& query_params);
@@ -485,6 +486,7 @@ SegmentIterator::SegmentIterator(std::shared_ptr<Segment> segment, Schema schema
           _predicate_columns(_opts.pred_tree.num_columns()),
           _use_vector_index(_opts.use_vector_index) {
     _enable_predicate_col_late_materialize = _opts.enable_predicate_col_late_materialize;
+    _has_topn_filter = _opts.has_topn_filter;
     if (_use_vector_index) {
         // The K in front of Fe is long, which can be changed to uint32. This can be a problem,
         // but this k is wasted memory allocation, so it should not exceed the accuracy of uint32
@@ -1774,6 +1776,11 @@ StatusOr<size_t> SegmentIterator::_predicate_evaluate_late_materialize(vector<ro
         // DCHECK_EQ(chunk_start, chunk->num_rows());
 
         if (chunk_start && !scan_range_normalized) {
+            break;
+        }
+
+        // if has topn filter, storage engine should send data to topn as soon as possible
+        if (_has_topn_filter) {
             break;
         }
     }
