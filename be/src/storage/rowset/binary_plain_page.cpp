@@ -248,21 +248,22 @@ bool BinaryPlainPageDecoder<Type>::next_range_with_filter(
 #endif
 
             uint32_t current_offset = offset - page_data_offset;
-            temp_offsets[i] = current_offset;
+            temp_offsets[i - idx + 1] = current_offset;
         }
 
         for (uint32_t i = end - 1; i < end; i++) {
             uint32_t current_offset = offset(i + 1) - page_data_offset;
-            temp_offsets[i] = current_offset;
+            temp_offsets[i - idx + 1] = current_offset;
         }
 
         size_t data_length = temp_offsets.back();
         const void* data_ptr = _data.get_data() + page_data_offset;
 
         // todo: merge null column if necessary
-        BinaryColumn temp_column(data_ptr, data_length, std::move(temp_offsets));
+        // Create a heap-allocated BinaryColumn to avoid stack object lifetime issues
+        auto temp_column = BinaryColumn::create(data_ptr, data_length, std::move(temp_offsets));
 
-        Status predicate_result = compound_and_predicates_evaluate(compound_and_predicates, &temp_column, selection,
+        Status predicate_result = compound_and_predicates_evaluate(compound_and_predicates, temp_column.get(), selection,
                                                                    selected_idx, 0, num_rows);
         auto data_column = ColumnHelper::get_data_column(dst);
         auto& bytes = down_cast<BinaryColumn*>(data_column)->get_bytes();
@@ -281,10 +282,12 @@ bool BinaryPlainPageDecoder<Type>::next_range_with_filter(
         // todo: optimize case when selected_count == num_rows
         offsets.reserve(original_offset_size + selected_count);
 
+        auto& temp_offset_in_column = temp_column->get_offset();
+
         size_t total_bytes_to_append = 0;
         for (uint32_t i = 0; i < num_rows; i++) {
             if (selection[i]) {
-                total_bytes_to_append += temp_offsets[i + 1];
+                total_bytes_to_append += temp_offset_in_column[i + 1];
             }
         }
 
@@ -293,9 +296,9 @@ bool BinaryPlainPageDecoder<Type>::next_range_with_filter(
         uint32_t current_offset = begin_offset;
         for (uint32_t i = 0; i < num_rows; i++) {
             if (selection[i]) {
-                uint32_t row_start = page_data_offset + temp_offsets[i];
-                uint32_t row_end = page_data_offset + temp_offsets[i + 1];
-                uint32_t row_length = temp_offsets[i + 1] - temp_offsets[i];
+                uint32_t row_start = page_data_offset + temp_offset_in_column[i];
+                uint32_t row_end = page_data_offset + temp_offset_in_column[i + 1];
+                uint32_t row_length = temp_offset_in_column[i + 1] - temp_offset_in_column[i];
 
                 bytes.insert(bytes.end(), _data.get_data() + row_start, _data.get_data() + row_end);
                 current_offset += row_length;

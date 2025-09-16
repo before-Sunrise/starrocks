@@ -34,6 +34,7 @@
 namespace starrocks {
 template <typename T>
 void BinaryColumnBase<T>::check_or_die() const {
+    if (_is_view) return;
     CHECK_EQ(_bytes.size(), _offsets.back());
     size_t size = this->size();
     for (size_t i = 0; i < size; i++) {

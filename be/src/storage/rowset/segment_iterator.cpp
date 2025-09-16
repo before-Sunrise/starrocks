@@ -170,9 +170,10 @@ private:
                 if (!predicate_col_late_materialize_read) {
                     RETURN_IF_ERROR(column_iterators[i]->next_batch(range, col.get()));
                 } else {
-                    // reset _is_filtered every time
-                    _is_filtered = false;
                     if (i == 0) {
+                        // reset _is_filtered every time
+                        _is_filtered = false;
+
                         // for first predicate column, if can filter data in page level
                         // _is_filtered is set to true
                         // and selection is record for filter rowId column
@@ -189,6 +190,10 @@ private:
                 }
                 if (pruned_col_size == 0) {
                     pruned_col_size = col->size();
+                }
+                if (pruned_col_size != col->size()) {
+                    return Status::InternalError(
+                            fmt::format("pruned_col_size {} != column size:{}", pruned_col_size, col->size()));
                 }
                 DCHECK_EQ(pruned_col_size, col->size());
                 may_has_del_row |= (col->delete_state() != DEL_NOT_SATISFIED);
@@ -607,6 +612,7 @@ Status SegmentIterator::_init() {
     RETURN_IF_ERROR(_rewrite_predicates());
     RETURN_IF_ERROR(_init_context());
     _init_column_predicates();
+    _init_compound_and_predicates_for_predicate_col_late_material();
 
     // reverse scan_range
     if (!_opts.asc_hint) {
@@ -1012,7 +1018,7 @@ void SegmentIterator::_init_column_predicates() {
 
 void SegmentIterator::_init_compound_and_predicates_for_predicate_col_late_material() {
     // don't support or predicate late materialize
-    if (_non_expr_pred_tree.has_or_predicate() || _expr_pred_tree.has_or_predicate()) {
+    if (_non_expr_pred_tree.has_or_predicate() || _expr_pred_tree.has_or_predicate() || !_context->_late_materialize) {
         _enable_predicate_col_late_materialize = false;
     }
 
@@ -1939,7 +1945,7 @@ Status SegmentIterator::_switch_context(ScanContext* to) {
 StatusOr<uint16_t> SegmentIterator::_filter_by_compound_and_predicates(
         Chunk* chunk, vector<rowid_t>* rowid, uint16_t from, uint16_t to,
         const std::vector<const ColumnPredicate*>& and_predicates, Columns& current_cols) {
-    if (and_predicates.size() == 0) {
+    if (and_predicates.size() == 0 || from == to) {
         return to;
     }
 
@@ -1948,6 +1954,10 @@ StatusOr<uint16_t> SegmentIterator::_filter_by_compound_and_predicates(
     {
         SCOPED_RAW_TIMER(&_opts.stats->vec_cond_evaluate_ns);
         Column* col = chunk->get_column_by_id(and_predicates[0]->column_id()).get();
+        if (col->empty()) {
+            DCHECK(from == to);
+            return to;
+        }
         RETURN_IF_ERROR(compound_and_predicates_evaluate(and_predicates, col, _selection.data(), _selected_idx.data(),
                                                          from, to));
     }

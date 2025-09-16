@@ -304,8 +304,17 @@ public:
         DCHECK_EQ(_offset_in_page, range.begin());
         DCHECK_EQ(_offset_in_page, _data_decoder->current_index());
         if (_null_flags.size() == 0) {
+            size_t original_col_size = column->size();
             RETURN_IF_ERROR(_data_decoder->next_batch_with_filter(column, range, compound_and_predicates, nullptr,
                                                                   selection, selected_idx, data_filtered));
+            size_t selected_size = SIMD::count_nonzero(selection, range.span_size());
+            if (*data_filtered) {
+                size_t added_col_size = column->size() - original_col_size;
+                if (selected_size != added_col_size) {
+                    return Status::InternalError(fmt::format("Selected size:{}, does not match added col size:{}",
+                                                             selected_size, added_col_size));
+                }
+            }
             _offset_in_page = range.end();
         } else {
             *data_filtered = false;

@@ -60,7 +60,7 @@
 
 namespace starrocks {
 class Column;
-}
+} // namespace starrocks
 
 namespace starrocks {
 
@@ -286,6 +286,40 @@ public:
     }
 
     uint32_t dict_size() { return _num_elems; }
+
+    // Zero-copy access methods for dictionary usage
+    const void* get_raw_data() const {
+        const uint32_t start_offset = offset_uncheck(0);
+        return &_data[start_offset];
+    }
+
+    size_t get_data_length() const { return _num_elems > 0 ? offset(_num_elems) - offset_uncheck(0) : 0; }
+
+    // Get offsets for zero-copy construction
+    void get_offsets_for_zero_copy(BinaryColumn::Offsets& offsets) const {
+        offsets.clear();
+        offsets.resize(_num_elems + 1);
+        offsets[0] = 0; // Start from 0
+
+        uint32_t base_offset = offset_uncheck(0); // Get the base offset
+        for (uint32_t i = 0; i < _num_elems - 1; ++i) {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+            auto offset = _offsets_ptr[i + 1];
+#else
+            // direct call offset_uncheck() will break auto-vectorized
+            // maybe we can remove this condition compile after we upgrade the toolchain
+            auto offset = offset_uncheck(i + 1);
+#endif
+            // Convert absolute offset to relative offset from base
+            uint32_t current_offset = offset - base_offset;
+            offsets[i + 1] = current_offset;
+        }
+
+        for (uint32_t i = _num_elems - 1; i < _num_elems; i++) {
+            uint32_t current_offset = offset(i + 1) - base_offset;
+            offsets[i + 1] = current_offset;
+        }
+    }
 
 private:
     // Return the offset within '_data' where the string value with index 'idx' can be found.
