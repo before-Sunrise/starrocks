@@ -37,10 +37,10 @@ Configure Skew Join V2 using the following session variables:
 
 ```sql
 -- Enable Skew Join V2 optimization
-SET enable_optimize_skew_join_by_broadcast_skew_values = true;
+SET enable_optimize_skew_join_v2 = true;
 
 -- Disable the old query rewrite method (recommended when using V2)
-SET enable_optimize_skew_join_by_query_rewrite = false;
+SET enable_optimize_skew_join_v1 = false;
 
 -- Optional: Enable automatic skew detection based on statistics
 SET enable_stats_to_optimize_skew_join = true;
@@ -50,8 +50,8 @@ SET enable_stats_to_optimize_skew_join = true;
 
 | Parameter | Description | Default Value |
 |-----------|-------------|---------------|
-| `enable_optimize_skew_join_by_broadcast_skew_values` | Enable Skew Join V2 optimization | `false` |
-| `enable_optimize_skew_join_by_query_rewrite` | Enable the old query rewrite method | `true` |
+| `enable_optimize_skew_join_v2` | Enable Skew Join V2 optimization | `false` |
+| `enable_optimize_skew_join_v1` | Enable the old query rewrite method | `true` |
 | `enable_stats_to_optimize_skew_join` | Enable automatic skew detection | `false` |
 | `skew_join_rand_range` | Random range for salt generation | `1000` |
 | `skew_join_use_mcv_count` | Number of most common values to consider | `5` |
@@ -309,10 +309,10 @@ If you're currently using the old skew join optimization, migrate to V2:
 
 ```sql
 -- Disable old method
-SET enable_optimize_skew_join_by_query_rewrite = false;
+SET enable_optimize_skew_join_v1 = false;
 
 -- Enable V2
-SET enable_optimize_skew_join_by_broadcast_skew_values = true;
+SET enable_optimize_skew_join_v2 = true;
 
 -- Update your queries to use the new syntax
 -- Old: Automatic detection based on statistics

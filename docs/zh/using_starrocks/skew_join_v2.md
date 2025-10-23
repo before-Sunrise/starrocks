@@ -37,10 +37,10 @@ ON join_condition
 
 ```sql
 -- 启用 Skew Join V2 优化
-SET enable_optimize_skew_join_by_broadcast_skew_values = true;
+SET enable_optimize_skew_join_v2 = true;
 
 -- 禁用旧的查询重写方法（使用 V2 时推荐）
-SET enable_optimize_skew_join_by_query_rewrite = false;
+SET enable_optimize_skew_join_v1 = false;
 
 -- 可选：启用基于统计信息的自动倾斜检测
 SET enable_stats_to_optimize_skew_join = true;
@@ -50,8 +50,8 @@ SET enable_stats_to_optimize_skew_join = true;
 
 | 参数 | 描述 | 默认值 |
 |------|------|--------|
-| `enable_optimize_skew_join_by_broadcast_skew_values` | 启用 Skew Join V2 优化 | `false` |
-| `enable_optimize_skew_join_by_query_rewrite` | 启用旧的查询重写方法 | `true` |
+| `enable_optimize_skew_join_v2` | 启用 Skew Join V2 优化 | `false` |
+| `enable_optimize_skew_join_v1` | 启用旧的查询重写方法 | `true` |
 | `enable_stats_to_optimize_skew_join` | 启用自动倾斜检测 | `false` |
 | `skew_join_rand_range` | 盐值生成的随机范围 | `1000` |
 | `skew_join_use_mcv_count` | 考虑的最常见值数量 | `5` |
@@ -309,10 +309,10 @@ SELECT ... FROM ... JOIN [skew|...] ...;
 
 ```sql
 -- 禁用旧方法
-SET enable_optimize_skew_join_by_query_rewrite = false;
+SET enable_optimize_skew_join_v1 = false;
 
 -- 启用 V2
-SET enable_optimize_skew_join_by_broadcast_skew_values = true;
+SET enable_optimize_skew_join_v2 = true;
 
 -- 更新查询以使用新语法
 -- 旧：基于统计信息的自动检测
