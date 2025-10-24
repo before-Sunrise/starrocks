@@ -10,7 +10,7 @@ Skew Join V2 是 StarRocks 中的高级优化功能，通过广播倾斜值来�
 
 数据倾斜是指连接列中的某些值比其他值出现频率高得多，导致数据在节点间分布不均，从而造成性能瓶颈。Skew Join V2 通过以下方式解决这个问题：
 
-1. **识别倾斜值**：自动检测或手动指定导致数据倾斜的值
+1. **识别倾斜值**：手动指定导致数据倾斜的值
 2. **广播倾斜值**：将这些特定值广播到所有节点，确保数据均匀分布
 3. **混合执行**：结合使用 shuffle 和 broadcast join 以获得最佳性能
 
@@ -41,9 +41,6 @@ SET enable_optimize_skew_join_v2 = true;
 
 -- 禁用旧的查询重写方法（使用 V2 时推荐）
 SET enable_optimize_skew_join_v1 = false;
-
--- 可选：启用基于统计信息的自动倾斜检测
-SET enable_stats_to_optimize_skew_join = true;
 ```
 
 ### 配置参数
@@ -52,10 +49,6 @@ SET enable_stats_to_optimize_skew_join = true;
 |------|------|--------|
 | `enable_optimize_skew_join_v2` | 启用 Skew Join V2 优化 | `false` |
 | `enable_optimize_skew_join_v1` | 启用旧的查询重写方法 | `true` |
-| `enable_stats_to_optimize_skew_join` | 启用自动倾斜检测 | `false` |
-| `skew_join_rand_range` | 盐值生成的随机范围 | `1000` |
-| `skew_join_use_mcv_count` | 考虑的最常见值数量 | `5` |
-| `skew_join_data_skew_threshold` | 检测数据倾斜的阈值 | `0.2` |
 
 ## 示例
 
@@ -205,12 +198,6 @@ Skew Join V2 创建一个混合执行计划，结合了：
                   最终结果
 ```
 
-### 盐值生成
-
-对于倾斜值，系统生成随机盐值以确保均匀分布：
-
-- **左表**：`CASE WHEN column IN (skew_values) THEN ROUND(RAND() * range) ELSE 0 END`
-- **右表**：广播带有对应盐值的倾斜值
 
 ## 最佳实践
 
@@ -315,8 +302,8 @@ SET enable_optimize_skew_join_v1 = false;
 SET enable_optimize_skew_join_v2 = true;
 
 -- 更新查询以使用新语法
--- 旧：基于统计信息的自动检测
--- 新：显式倾斜值指定
+-- 旧：查询重写方法
+-- 新：显式指定倾斜值并使用广播
 ```
 
 ## 相关主题

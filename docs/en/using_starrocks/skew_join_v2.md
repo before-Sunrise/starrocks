@@ -10,7 +10,7 @@ Skew Join V2 is an advanced optimization feature in StarRocks that addresses dat
 
 Data skew occurs when certain values in join columns appear much more frequently than others, leading to uneven data distribution across nodes and causing performance bottlenecks. Skew Join V2 solves this problem by:
 
-1. **Identifying skew values**: Automatically detecting or manually specifying values that cause data skew
+1. **Identifying skew values**: Manually specifying values that cause data skew
 2. **Broadcasting skew values**: Broadcasting these specific values to all nodes to ensure even data distribution
 3. **Hybrid execution**: Using a combination of shuffle and broadcast joins for optimal performance
 
@@ -41,9 +41,6 @@ SET enable_optimize_skew_join_v2 = true;
 
 -- Disable the old query rewrite method (recommended when using V2)
 SET enable_optimize_skew_join_v1 = false;
-
--- Optional: Enable automatic skew detection based on statistics
-SET enable_stats_to_optimize_skew_join = true;
 ```
 
 ### Configuration Parameters
@@ -52,10 +49,6 @@ SET enable_stats_to_optimize_skew_join = true;
 |-----------|-------------|---------------|
 | `enable_optimize_skew_join_v2` | Enable Skew Join V2 optimization | `false` |
 | `enable_optimize_skew_join_v1` | Enable the old query rewrite method | `true` |
-| `enable_stats_to_optimize_skew_join` | Enable automatic skew detection | `false` |
-| `skew_join_rand_range` | Random range for salt generation | `1000` |
-| `skew_join_use_mcv_count` | Number of most common values to consider | `5` |
-| `skew_join_data_skew_threshold` | Threshold for detecting data skew | `0.2` |
 
 ## Examples
 
@@ -205,12 +198,6 @@ Left Table (with skew values)     Right Table
                   Final Result
 ```
 
-### Salt Generation
-
-For skew values, the system generates random salt values to ensure even distribution:
-
-- **Left table**: `CASE WHEN column IN (skew_values) THEN ROUND(RAND() * range) ELSE 0 END`
-- **Right table**: Broadcasts skew values with corresponding salt values
 
 ## Best Practices
 
@@ -315,8 +302,8 @@ SET enable_optimize_skew_join_v1 = false;
 SET enable_optimize_skew_join_v2 = true;
 
 -- Update your queries to use the new syntax
--- Old: Automatic detection based on statistics
--- New: Explicit skew value specification
+-- Old: Query rewrite method
+-- New: Explicit skew value specification with broadcast
 ```
 
 ## Related Topics
