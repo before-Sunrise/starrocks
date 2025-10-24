@@ -235,20 +235,10 @@ SELECT ... FROM ... JOIN [skew|...] ...;
 SHOW PROFILES;
 ```
 
-### 4. 配置调优
+### 4. 监控性能
 
-根据数据特征调整配置参数：
+监控查询性能并根据需要调整倾斜值：
 
-```sql
--- 对于高基数倾斜
-SET skew_join_use_mcv_count = 10;
-
--- 对于更敏感的倾斜检测
-SET skew_join_data_skew_threshold = 0.1;
-
--- 对于更大的随机范围
-SET skew_join_rand_range = 2000;
-```
 
 ## 限制
 
@@ -264,11 +254,11 @@ SET skew_join_rand_range = 2000;
 1. **查询性能未改善**
    - 验证指定的倾斜值是否真的导致倾斜
    - 检查广播开销是否超过倾斜优化收益
-   - 考虑调整 `skew_join_data_skew_threshold`
+   - 验证倾斜值是否正确指定
 
 2. **内存问题**
    - 减少倾斜值数量
-   - 增加集群内存或减少 `skew_join_rand_range`
+   - 增加集群内存或减少倾斜值数量
    - 监控广播连接内存使用
 
 3. **结果不正确**

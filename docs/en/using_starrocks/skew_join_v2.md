@@ -235,20 +235,10 @@ SELECT ... FROM ... JOIN [skew|...] ...;
 SHOW PROFILES;
 ```
 
-### 4. Configuration Tuning
+### 4. Monitor Performance
 
-Adjust configuration parameters based on your data characteristics:
+Monitor query performance and adjust skew values as needed:
 
-```sql
--- For high-cardinality skew
-SET skew_join_use_mcv_count = 10;
-
--- For more sensitive skew detection
-SET skew_join_data_skew_threshold = 0.1;
-
--- For larger random ranges
-SET skew_join_rand_range = 2000;
-```
 
 ## Limitations
 
@@ -264,11 +254,11 @@ SET skew_join_rand_range = 2000;
 1. **Query Performance Not Improved**
    - Verify that the specified skew values are actually causing skew
    - Check if the broadcast overhead exceeds the skew optimization benefit
-   - Consider adjusting `skew_join_data_skew_threshold`
+   - Verify that the skew values are correctly specified
 
 2. **Memory Issues**
    - Reduce the number of skew values
-   - Increase cluster memory or reduce `skew_join_rand_range`
+   - Increase cluster memory or reduce the number of skew values
    - Monitor broadcast join memory usage
 
 3. **Incorrect Results**
