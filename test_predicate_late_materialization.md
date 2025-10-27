@@ -106,19 +106,19 @@ DISTRIBUTED BY HASH(filter_col1) BUCKETS 32;
 
 #### 高过滤性 (1% selectivity)
 ```sql
--- filter_col1: 99%的值为'common_value'，1%的值为'rare_value_X'
+-- filter_col1: 99%的值为3000000-3000009，1%的值为1000000-1000009
 -- filter_col2: 类似分布
 ```
 
 #### 中等过滤性 (10% selectivity)  
 ```sql
--- filter_col1: 90%的值为'common_value'，10%的值为'medium_value_X'
+-- filter_col1: 90%的值为3000000-3000009，10%的值为2000000-2000009
 -- filter_col2: 类似分布
 ```
 
 #### 低过滤性 (50% selectivity)
 ```sql
--- filter_col1: 50%的值为'value_A'，50%的值为'value_B' 
+-- filter_col1: 50%的值为3000000-3000009，50%的值为其他范围
 -- filter_col2: 类似分布
 ```
 
@@ -131,69 +131,69 @@ SELECT data_col1, data_col2, data_col3, data_col4, data_col5,
        data_col6, data_col7, data_col8, data_col9, data_col10,
        data_col11, data_col12, data_col13, data_col14, data_col15,
        data_col16, data_col17, data_col18, data_col19, data_col20
-FROM test_predicate_few_char 
-WHERE filter_col1 = 'rare_value_1' AND filter_col2 = 'rare_value_2';
+FROM test_predicate_few_int 
+WHERE filter_col1 = 1000001 AND filter_col2 = 1000001;
 
 -- 中等过滤性查询  
 SELECT data_col1, data_col2, data_col3, data_col4, data_col5,
        data_col6, data_col7, data_col8, data_col9, data_col10,
        data_col11, data_col12, data_col13, data_col14, data_col15,
        data_col16, data_col17, data_col18, data_col19, data_col20
-FROM test_predicate_few_char 
-WHERE filter_col1 = 'medium_value_1' AND filter_col2 = 'medium_value_2';
+FROM test_predicate_few_int 
+WHERE filter_col1 = 2000001 AND filter_col2 = 2000001;
 
 -- 低过滤性查询
 SELECT data_col1, data_col2, data_col3, data_col4, data_col5,
        data_col6, data_col7, data_col8, data_col9, data_col10,
        data_col11, data_col12, data_col13, data_col14, data_col15,
        data_col16, data_col17, data_col18, data_col19, data_col20
-FROM test_predicate_few_char 
-WHERE filter_col1 = 'value_A' AND filter_col2 = 'value_B';
+FROM test_predicate_few_int 
+WHERE filter_col1 = 3000001 AND filter_col2 = 3000001;
 ```
 
 ### 查询模板2：谓词列多的情况
 ```sql
 -- 高过滤性查询
 SELECT data_col1, data_col2, data_col3, data_col4, data_col5
-FROM test_predicate_many_char 
-WHERE filter_col1 = 'rare_value_1' 
-  AND filter_col2 = 'rare_value_2'
-  AND filter_col3 = 'rare_value_3'
-  AND filter_col4 = 'rare_value_4'
-  AND filter_col5 = 'rare_value_5'
-  AND filter_col6 = 'rare_value_6'
-  AND filter_col7 = 'rare_value_7'
-  AND filter_col8 = 'rare_value_8'
-  AND filter_col9 = 'rare_value_9'
-  AND filter_col10 = 'rare_value_10';
+FROM test_predicate_many_int 
+WHERE filter_col1 = 1000001 
+  AND filter_col2 = 1000001
+  AND filter_col3 = 1000001
+  AND filter_col4 = 1000001
+  AND filter_col5 = 1000001
+  AND filter_col6 = 1000001
+  AND filter_col7 = 1000001
+  AND filter_col8 = 1000001
+  AND filter_col9 = 1000001
+  AND filter_col10 = 1000001;
 
 -- 中等过滤性查询
 SELECT data_col1, data_col2, data_col3, data_col4, data_col5
-FROM test_predicate_many_char 
-WHERE filter_col1 = 'medium_value_1' 
-  AND filter_col2 = 'medium_value_2'
-  AND filter_col3 = 'medium_value_3'
-  AND filter_col4 = 'medium_value_4'
-  AND filter_col5 = 'medium_value_5'
-  AND filter_col6 = 'medium_value_6'
-  AND filter_col7 = 'medium_value_7'
-  AND filter_col8 = 'medium_value_8'
-  AND filter_col9 = 'medium_value_9'
-  AND filter_col10 = 'medium_value_10';
+FROM test_predicate_many_int 
+WHERE filter_col1 = 2000001 
+  AND filter_col2 = 2000001
+  AND filter_col3 = 2000001
+  AND filter_col4 = 2000001
+  AND filter_col5 = 2000001
+  AND filter_col6 = 2000001
+  AND filter_col7 = 2000001
+  AND filter_col8 = 2000001
+  AND filter_col9 = 2000001
+  AND filter_col10 = 2000001;
 
 -- 低过滤性查询
 SELECT data_col1, data_col2, data_col3, data_col4, data_col5
-FROM test_predicate_many_char 
-WHERE filter_col1 = 'value_A' 
-  AND filter_col2 = 'value_B'
-  AND filter_col3 = 'value_A'
-  AND filter_col4 = 'value_B'
-  AND filter_col5 = 'value_A'
-  AND filter_col6 = 'value_B'
-  AND filter_col7 = 'value_A'
-  AND filter_col8 = 'value_B'
-  AND filter_col9 = 'value_A'
-  AND filter_col10 = 'value_B';
+FROM test_predicate_many_int 
+WHERE filter_col1 = 3000001 
+  AND filter_col2 = 3000001
+  AND filter_col3 = 3000001
+  AND filter_col4 = 3000001
+  AND filter_col5 = 3000001
+  AND filter_col6 = 3000001
+  AND filter_col7 = 3000001
+  AND filter_col8 = 3000001
+  AND filter_col9 = 3000001
+  AND filter_col10 = 3000001;
 ```
 
 ## 测试配置
@@ -280,17 +280,17 @@ ANALYZE TABLE test_predicate_many_varchar;
 
 | 过滤性 | 列比例 | 数据类型 | 配置A性能 | 配置B性能 | 推荐配置 |
 |--------|--------|----------|-----------|-----------|----------|
-| 高(1%) | 少(1:10) | CHAR | ? | ? | ? |
+| 高(1%) | 少(1:10) | INT | ? | ? | ? |
 | 高(1%) | 少(1:10) | VARCHAR | ? | ? | ? |
-| 高(1%) | 多(2:1) | CHAR | ? | ? | ? |
+| 高(1%) | 多(2:1) | INT | ? | ? | ? |
 | 高(1%) | 多(2:1) | VARCHAR | ? | ? | ? |
-| 中(10%) | 少(1:10) | CHAR | ? | ? | ? |
+| 中(10%) | 少(1:10) | INT | ? | ? | ? |
 | 中(10%) | 少(1:10) | VARCHAR | ? | ? | ? |
-| 中(10%) | 多(2:1) | CHAR | ? | ? | ? |
+| 中(10%) | 多(2:1) | INT | ? | ? | ? |
 | 中(10%) | 多(2:1) | VARCHAR | ? | ? | ? |
-| 低(50%) | 少(1:10) | CHAR | ? | ? | ? |
+| 低(50%) | 少(1:10) | INT | ? | ? | ? |
 | 低(50%) | 少(1:10) | VARCHAR | ? | ? | ? |
-| 低(50%) | 多(2:1) | CHAR | ? | ? | ? |
+| 低(50%) | 多(2:1) | INT | ? | ? | ? |
 | 低(50%) | 多(2:1) | VARCHAR | ? | ? | ? |
 
 通过这个全面的测试方案，可以清楚地了解谓词列延迟物化在不同场景下的性能表现，为生产环境的配置选择提供数据支撑。

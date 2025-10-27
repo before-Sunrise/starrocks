@@ -75,26 +75,26 @@ execute_sql() {
 
 # 测试场景定义
 declare -a test_scenarios=(
-    "谓词列少+定长字符+高过滤性"
-    "谓词列少+定长字符+中等过滤性"  
-    "谓词列少+定长字符+低过滤性"
+    "谓词列少+定长数值+高过滤性"
+    "谓词列少+定长数值+中等过滤性"  
+    "谓词列少+定长数值+低过滤性"
     "谓词列少+变长字符+高过滤性"
     "谓词列少+变长字符+中等过滤性"
     "谓词列少+变长字符+低过滤性"
-    "谓词列多+定长字符+高过滤性"
-    "谓词列多+定长字符+中等过滤性"
-    "谓词列多+定长字符+低过滤性"
+    "谓词列多+定长数值+高过滤性"
+    "谓词列多+定长数值+中等过滤性"
+    "谓词列多+定长数值+低过滤性"
     "谓词列多+变长字符+高过滤性"
     "谓词列多+变长字符+中等过滤性"
     "谓词列多+变长字符+低过滤性"
 )
 
 declare -a test_queries=(
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_char WHERE filter_col1 = 'rare_value_1' AND filter_col2 = 'rare_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_int WHERE filter_col1 = 1000001 AND filter_col2 = 1000001;"
     
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_char WHERE filter_col1 = 'medium_value_1' AND filter_col2 = 'medium_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_int WHERE filter_col1 = 2000001 AND filter_col2 = 2000001;"
     
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_char WHERE filter_col1 = 'common_value_1' AND filter_col2 = 'common_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_int WHERE filter_col1 = 3000001 AND filter_col2 = 3000001;"
     
     "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_varchar WHERE filter_col1 LIKE 'rare_value_1_%' AND filter_col2 LIKE 'rare_value_1_%';"
     
@@ -102,11 +102,11 @@ declare -a test_queries=(
     
     "SELECT data_col1, data_col2, data_col3, data_col4, data_col5, data_col6, data_col7, data_col8, data_col9, data_col10, data_col11, data_col12, data_col13, data_col14, data_col15, data_col16, data_col17, data_col18, data_col19, data_col20 FROM test_predicate_few_varchar WHERE filter_col1 LIKE 'common_value_1_%' AND filter_col2 LIKE 'common_value_1_%';"
     
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_char WHERE filter_col1 = 'rare_value_1' AND filter_col2 = 'rare_value_1' AND filter_col3 = 'rare_value_1' AND filter_col4 = 'rare_value_1' AND filter_col5 = 'rare_value_1' AND filter_col6 = 'rare_value_1' AND filter_col7 = 'rare_value_1' AND filter_col8 = 'rare_value_1' AND filter_col9 = 'rare_value_1' AND filter_col10 = 'rare_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_int WHERE filter_col1 = 1000001 AND filter_col2 = 1000001 AND filter_col3 = 1000001 AND filter_col4 = 1000001 AND filter_col5 = 1000001 AND filter_col6 = 1000001 AND filter_col7 = 1000001 AND filter_col8 = 1000001 AND filter_col9 = 1000001 AND filter_col10 = 1000001;"
     
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_char WHERE filter_col1 = 'medium_value_1' AND filter_col2 = 'medium_value_1' AND filter_col3 = 'medium_value_1' AND filter_col4 = 'medium_value_1' AND filter_col5 = 'medium_value_1' AND filter_col6 = 'medium_value_1' AND filter_col7 = 'medium_value_1' AND filter_col8 = 'medium_value_1' AND filter_col9 = 'medium_value_1' AND filter_col10 = 'medium_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_int WHERE filter_col1 = 2000001 AND filter_col2 = 2000001 AND filter_col3 = 2000001 AND filter_col4 = 2000001 AND filter_col5 = 2000001 AND filter_col6 = 2000001 AND filter_col7 = 2000001 AND filter_col8 = 2000001 AND filter_col9 = 2000001 AND filter_col10 = 2000001;"
     
-    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_char WHERE filter_col1 = 'common_value_1' AND filter_col2 = 'common_value_1' AND filter_col3 = 'common_value_1' AND filter_col4 = 'common_value_1' AND filter_col5 = 'common_value_1' AND filter_col6 = 'common_value_1' AND filter_col7 = 'common_value_1' AND filter_col8 = 'common_value_1' AND filter_col9 = 'common_value_1' AND filter_col10 = 'common_value_1';"
+    "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_int WHERE filter_col1 = 3000001 AND filter_col2 = 3000001 AND filter_col3 = 3000001 AND filter_col4 = 3000001 AND filter_col5 = 3000001 AND filter_col6 = 3000001 AND filter_col7 = 3000001 AND filter_col8 = 3000001 AND filter_col9 = 3000001 AND filter_col10 = 3000001;"
     
     "SELECT data_col1, data_col2, data_col3, data_col4, data_col5 FROM test_predicate_many_varchar WHERE filter_col1 LIKE 'rare_value_1_%' AND filter_col2 LIKE 'rare_value_1_%' AND filter_col3 LIKE 'rare_value_1_%' AND filter_col4 LIKE 'rare_value_1_%' AND filter_col5 LIKE 'rare_value_1_%' AND filter_col6 LIKE 'rare_value_1_%' AND filter_col7 LIKE 'rare_value_1_%' AND filter_col8 LIKE 'rare_value_1_%' AND filter_col9 LIKE 'rare_value_1_%' AND filter_col10 LIKE 'rare_value_1_%';"
     
