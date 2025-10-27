@@ -66,16 +66,16 @@ DUPLICATE KEY(filter_col1, filter_col2)
 DISTRIBUTED BY HASH(filter_col1) BUCKETS 32;
 ```
 
-### 表3：谓词列多 + 定长字符
+### 表3：谓词列多 + 定长数值类型
 ```sql
-CREATE TABLE test_predicate_many_char (
+CREATE TABLE test_predicate_many_int (
     -- 谓词列 (10个)
-    filter_col1 CHAR(50), filter_col2 CHAR(50), filter_col3 CHAR(50), filter_col4 CHAR(50),
-    filter_col5 CHAR(50), filter_col6 CHAR(50), filter_col7 CHAR(50), filter_col8 CHAR(50),
-    filter_col9 CHAR(50), filter_col10 CHAR(50),
+    filter_col1 INT, filter_col2 INT, filter_col3 INT, filter_col4 INT,
+    filter_col5 INT, filter_col6 INT, filter_col7 INT, filter_col8 INT,
+    filter_col9 INT, filter_col10 INT,
     
     -- 非谓词列 (5个)
-    data_col1 CHAR(50), data_col2 CHAR(50), data_col3 CHAR(50), data_col4 CHAR(50), data_col5 CHAR(50)
+    data_col1 INT, data_col2 INT, data_col3 INT, data_col4 INT, data_col5 INT
 ) 
 DUPLICATE KEY(filter_col1, filter_col2)
 DISTRIBUTED BY HASH(filter_col1) BUCKETS 32;
