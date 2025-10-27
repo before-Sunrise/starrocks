@@ -25,24 +25,24 @@
 - **谓词列多**：10个谓词列 vs 5个非谓词列 (2:1比例)
 
 ### 3. 数据类型维度 (Data Types)
-- **定长字符类型**：CHAR(50)
+- **定长数值类型**：INT, BIGINT, DOUBLE等固定长度类型
 - **变长字符类型**：VARCHAR(200)
 
 ## 测试表结构设计
 
-### 表1：谓词列少 + 定长字符
+### 表1：谓词列少 + 定长数值类型
 ```sql
-CREATE TABLE test_predicate_few_char (
+CREATE TABLE test_predicate_few_int (
     -- 谓词列 (2个)
-    filter_col1 CHAR(50),
-    filter_col2 CHAR(50),
+    filter_col1 INT,
+    filter_col2 INT,
     
     -- 非谓词列 (20个)
-    data_col1 CHAR(50), data_col2 CHAR(50), data_col3 CHAR(50), data_col4 CHAR(50),
-    data_col5 CHAR(50), data_col6 CHAR(50), data_col7 CHAR(50), data_col8 CHAR(50),
-    data_col9 CHAR(50), data_col10 CHAR(50), data_col11 CHAR(50), data_col12 CHAR(50),
-    data_col13 CHAR(50), data_col14 CHAR(50), data_col15 CHAR(50), data_col16 CHAR(50),
-    data_col17 CHAR(50), data_col18 CHAR(50), data_col19 CHAR(50), data_col20 CHAR(50)
+    data_col1 INT, data_col2 INT, data_col3 INT, data_col4 INT,
+    data_col5 INT, data_col6 INT, data_col7 INT, data_col8 INT,
+    data_col9 INT, data_col10 INT, data_col11 INT, data_col12 INT,
+    data_col13 INT, data_col14 INT, data_col15 INT, data_col16 INT,
+    data_col17 INT, data_col18 INT, data_col19 INT, data_col20 INT
 ) 
 DUPLICATE KEY(filter_col1, filter_col2)
 DISTRIBUTED BY HASH(filter_col1) BUCKETS 32;
