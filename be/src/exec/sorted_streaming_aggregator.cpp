@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "column/append_with_mask.h"
 #include "column/array_column.h"
 #include "column/column_visitor_adapter.h"
 #include "column/nullable_column.h"
@@ -161,103 +162,6 @@ private:
     const ColumnPtr& _first_column;
     std::vector<uint8_t>& _cmp_vector;
     const NullMasks _null_masks;
-};
-
-// append the result by selector
-// selector[i] == 0 means selected
-//
-class AppendWithMask : public ColumnVisitorMutableAdapter<AppendWithMask> {
-public:
-    using SelMask = Filter;
-
-    AppendWithMask(Column* column, SelMask sel_mask, size_t selected_size)
-            : ColumnVisitorMutableAdapter(this),
-              _column(column),
-              _sel_mask(std::move(sel_mask)),
-              _selected_size(selected_size) {}
-
-    Status do_visit(NullableColumn* column) {
-        auto col = down_cast<NullableColumn*>(_column);
-        AppendWithMask data_appender(col->data_column().get(), _sel_mask, _selected_size);
-        RETURN_IF_ERROR(column->data_column()->accept_mutable(&data_appender));
-        AppendWithMask null_appender(col->null_column().get(), _sel_mask, _selected_size);
-        RETURN_IF_ERROR(column->null_column()->accept_mutable(&null_appender));
-        column->update_has_null();
-        return Status::OK();
-    }
-
-    Status do_visit(ConstColumn* column) {
-        return Status::NotSupported("Unsupported const column in column wise comparator");
-    }
-
-    Status do_visit(ArrayColumn* column) {
-        auto col = down_cast<ArrayColumn*>(_column);
-
-        for (size_t i = 0; i < _sel_mask.size(); ++i) {
-            if (_sel_mask[i] == 0) {
-                column->append(*col, i, 1);
-            }
-        }
-
-        return Status::OK();
-    }
-
-    Status do_visit(LargeBinaryColumn* column) {
-        return Status::NotSupported("Unsupported large binary column in column wise comparator");
-    }
-
-    Status do_visit(BinaryColumn* column) {
-        auto col = down_cast<BinaryColumn*>(_column);
-        auto& slices = col->get_proxy_data();
-        std::vector<Slice> datas(_sel_mask.size());
-        size_t offsets = 0;
-
-        for (size_t i = 0; i < _sel_mask.size(); ++i) {
-            datas[offsets] = slices[i];
-            offsets += !_sel_mask[i];
-        }
-        DCHECK_EQ(_selected_size, offsets);
-        datas.resize(_selected_size);
-        column->append_strings(datas.data(), datas.size());
-        return Status::OK();
-    }
-
-    template <typename T>
-    Status do_visit(FixedLengthColumnBase<T>* column) {
-        auto col = down_cast<FixedLengthColumnBase<T>*>(_column);
-        const auto& container = col->get_data();
-        std::vector<T> datas(_sel_mask.size());
-        size_t offsets = 0;
-
-        for (size_t i = 0; i < _sel_mask.size(); ++i) {
-            datas[offsets] = container[i];
-            offsets += !_sel_mask[i];
-        }
-
-        DCHECK_EQ(_selected_size, offsets);
-        datas.resize(_selected_size);
-        column->append_numbers(datas.data(), sizeof(T) * _selected_size);
-
-        return Status::OK();
-    }
-
-    template <typename T>
-    Status do_visit(ObjectColumn<T>* column) {
-        return Status::NotSupported("Unsupported object column in column wise comparator");
-    }
-
-    Status do_visit(MapColumn* column) {
-        return Status::NotSupported("Unsupported map column in column wise comparator");
-    }
-
-    Status do_visit(StructColumn* column) {
-        return Status::NotSupported("Unsupported struct column in column wise comparator");
-    }
-
-private:
-    Column* _column;
-    const SelMask _sel_mask;
-    size_t _selected_size;
 };
 
 // batch allocate states
@@ -519,6 +423,7 @@ void SortedStreamingAggregator::_close_group_by(size_t chunk_size, const Filter&
 
 Status SortedStreamingAggregator::_build_group_by_columns(size_t chunk_size, size_t selected_size,
                                                           const Filter& selector, Columns& agg_group_by_columns) {
+    (void)selected_size;
     SCOPED_TIMER(_agg_stat->agg_append_timer);
     if (_cmp_vector[0] != 0 && !_last_columns.empty() && !_last_columns.back()->empty()) {
         for (size_t i = 0; i < agg_group_by_columns.size(); ++i) {
@@ -527,8 +432,9 @@ Status SortedStreamingAggregator::_build_group_by_columns(size_t chunk_size, siz
     }
 
     for (size_t i = 0; i < agg_group_by_columns.size(); ++i) {
-        AppendWithMask appender(_group_by_columns[i].get(), selector, selected_size);
-        RETURN_IF_ERROR(agg_group_by_columns[i]->accept_mutable(&appender));
+        RETURN_IF_ERROR(
+                append_with_mask</*PositiveSelect=*/false>(agg_group_by_columns[i].get(), *_group_by_columns[i],
+                                                           selector.data(), selector.size()));
     }
     return Status::OK();
 }
