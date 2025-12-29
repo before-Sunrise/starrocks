@@ -615,6 +615,7 @@ vectorized_functions = [
     # TODO: 50384 minute_from_unixtime
     # TODO: 50385 second_from_unixtime
 
+    [50270, 'parse_duration', True, False, 'TIME', ['VARCHAR'], 'TimeFunctions::parse_duration'],
     [50310, 'dayname', True, False, 'VARCHAR', ['DATETIME'], 'TimeFunctions::day_name'],
     [50311, 'monthname', True, False, 'VARCHAR', ['DATETIME'], 'TimeFunctions::month_name'],
     [50320, 'convert_tz', True, False, 'DATETIME', ['DATETIME', 'VARCHAR', 'VARCHAR'], 'TimeFunctions::convert_tz',

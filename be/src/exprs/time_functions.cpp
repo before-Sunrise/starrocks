@@ -38,6 +38,7 @@ typedef unsigned long ulong;
 #include "runtime/datetime_value.h"
 #include "runtime/runtime_state.h"
 #include "types/date_value.h"
+#include "util/string_parser.hpp"
 
 namespace starrocks {
 // index as day of week(1: Sunday, 2: Monday....), value as distance of this day and first day(Monday) of this week.
@@ -50,6 +51,108 @@ const static int DEFAULT_DATE_FORMAT_LIMIT = 100;
     StatusOr<ColumnPtr> TimeFunctions::NAME(FunctionContext* context, const starrocks::Columns& columns) {    \
         return VectorizedStrictUnaryFunction<NAME##Impl>::evaluate<TYPE, RESULT_TYPE>(VECTORIZED_FN_ARGS(0)); \
     }
+
+StatusOr<ColumnPtr> TimeFunctions::parse_duration(FunctionContext* context, const Columns& columns) {
+    ColumnViewer<TYPE_VARCHAR> viewer(columns[0]);
+    size_t size = columns[0]->size();
+    ColumnBuilder<TYPE_TIME> builder(size);
+
+    for (size_t i = 0; i < size; ++i) {
+        if (viewer.is_null(i)) {
+            builder.append_null();
+            continue;
+        }
+
+        Slice slice = viewer.value(i);
+        if (slice.size == 0) {
+            builder.append_null();
+            continue;
+        }
+
+        const char* data = slice.data;
+        int len = (int)slice.size;
+
+        // Skip leading spaces
+        int start = 0;
+        while (start < len && StringParser::is_whitespace(data[start])) {
+            start++;
+        }
+
+        if (start == len) {
+            builder.append_null();
+            continue;
+        }
+
+        // Find the boundary between value and unit
+        int unit_start = start;
+        while (unit_start < len) {
+            char c = data[unit_start];
+            // Part of a number? (Digits, decimal point, signs, or exponent E/e)
+            if (isdigit(c) || c == '.' || c == '+' || c == '-') {
+                unit_start++;
+            } else if ((c == 'e' || c == 'E') && unit_start + 1 < len &&
+                       (isdigit(data[unit_start + 1]) || data[unit_start + 1] == '+' || data[unit_start + 1] == '-')) {
+                // Potential exponent part of a float
+                unit_start++;
+            } else {
+                break;
+            }
+        }
+
+        if (unit_start == start) {
+            builder.append_null();
+            continue;
+        }
+
+        StringParser::ParseResult res;
+        double value = StringParser::string_to_float<double>(data + start, unit_start - start, &res);
+        if (res != StringParser::PARSE_SUCCESS) {
+            builder.append_null();
+            continue;
+        }
+
+        // Skip spaces between value and unit
+        while (unit_start < len && StringParser::is_whitespace(data[unit_start])) {
+            unit_start++;
+        }
+
+        if (unit_start == len) {
+            builder.append_null();
+            continue;
+        }
+
+        // Find the end of unit by skipping trailing spaces
+        int unit_end = len;
+        while (unit_end > unit_start && StringParser::is_whitespace(data[unit_end - 1])) {
+            unit_end--;
+        }
+
+        std::string_view unit(data + unit_start, unit_end - unit_start);
+        double multiplier = 0;
+        if (unit == "ns") {
+            multiplier = 0.000000001;
+        } else if (unit == "us") {
+            multiplier = 0.000001;
+        } else if (unit == "ms") {
+            multiplier = 0.001;
+        } else if (unit == "s") {
+            multiplier = 1.0;
+        } else if (unit == "m") {
+            multiplier = 60.0;
+        } else if (unit == "h") {
+            multiplier = 3600.0;
+        } else if (unit == "d") {
+            multiplier = 86400.0;
+        } else {
+            builder.append_null();
+            continue;
+        }
+
+        builder.append(value * multiplier);
+    }
+
+    return builder.build(ColumnHelper::is_all_const(columns));
+}
 
 #define DEFINE_TIME_STRING_UNARY_FN(NAME, TYPE, RESULT_TYPE)                                                        \
     StatusOr<ColumnPtr> TimeFunctions::NAME(FunctionContext* context, const starrocks::Columns& columns) {          \

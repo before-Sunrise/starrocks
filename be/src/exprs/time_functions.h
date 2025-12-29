@@ -800,10 +800,17 @@ public:
     static StatusOr<ColumnPtr> next_day_wdc(FunctionContext* context, const Columns& columns);
 
     /**
+     * @param duration: e.g. "1.2h", "123ms"
+     * @return return standard time (double type in StarRocks)
+     */
+    DEFINE_VECTORIZED_FN(parse_duration);
+
+    static StatusOr<ColumnPtr> datetime_trunc(FunctionContext* context, const Columns& columns);
+
+    /**
      * Returns the date of the first specified DOW (day of week) that occurs before the input date.
      * @param: [timestamp, dow]
      * @paramType columns: [TimestampColumn, BinaryColumn of TYPE_VARCHAR]
-     * @return DateColumn of TYPE_DATE.
      */
     DEFINE_VECTORIZED_FN(previous_day);
 
