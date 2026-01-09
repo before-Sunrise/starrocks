@@ -970,7 +970,7 @@ Status FragmentExecutor::prepare(ExecEnv* exec_env, const TExecPlanFragmentParam
     return Status::OK();
 }
 
-Status FragmentExecutor::execute(ExecEnv* exec_env) {
+Status FragmentExecutor::execute(ExecEnv* exec_env, bool submit) {
     bool prepare_success = false;
     DeferOp defer([this, &prepare_success]() {
         if (!prepare_success) {
@@ -988,16 +988,36 @@ Status FragmentExecutor::execute(ExecEnv* exec_env) {
         _fragment_ctx->acquire_runtime_filters();
         RETURN_IF_ERROR(_fragment_ctx->prepare_active_drivers());
     }
+    _fragment_ctx->mark_prepare_successful();
     prepare_success = true;
+    _all_prepared = true;
+    if (submit) {
+        RETURN_IF_ERROR(submit());
+    }
+    return Status::OK();
+}
+
+Status FragmentExecutor::submit() {
+    bool submit_success = false;
+    DeferOp defer([this, &submit_success]() {
+        if (!submit_success) {
+            _fail_cleanup(true);
+        }
+    });
 
     DCHECK(_fragment_ctx->enable_resource_group());
     auto* executor = _wg->executors()->driver_executor();
     RETURN_IF_ERROR(_fragment_ctx->submit_active_drivers(executor));
-
     auto* runtime_state = _fragment_ctx->runtime_state();
     runtime_state->set_fragment_prepared(true);
-
+    submit_success = true;
     return Status::OK();
+}
+
+void FragmentExecutor::clean_up_when_success() {
+    if (_all_prepared) {
+        _fail_cleanup(true);
+    }
 }
 
 void FragmentExecutor::_fail_cleanup(bool fragment_has_registed) {

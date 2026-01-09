@@ -189,6 +189,9 @@ public:
     void add_timer_observer(PipelineObserver* observer, uint64_t timeout);
     Status submit_all_timer();
 
+    bool is_prepare_successful() const { return _prepare_successful; }
+    void mark_prepare_successful() { _prepare_successful = true; }
+
 private:
     void _close_stream_load_contexts();
 
@@ -254,6 +257,7 @@ private:
 
     RuntimeProfile::Counter* _jit_counter = nullptr;
     RuntimeProfile::Counter* _jit_timer = nullptr;
+    std::atomic_bool _prepare_successful = false;
 
     bool _report_when_finish{};
 };
