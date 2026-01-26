@@ -105,11 +105,11 @@ public class RankingWindowUtils {
                     new CallOperator(aggregation.getFnName(), intermediateType, aggregation.getChildren(),
                             aggregation.getFunction(), aggregation.isDistinct(), aggregation.isRemovedDistinct());
 
-            // local output column always nullable
+            // Local output column holds intermediate aggregation state, and must be nullable so that
+            // BE can safely use the nullable aggregate wrapper when the input is nullable.
             // localOutputColumnRefOp must have new ColumnId, which is different from two phase agg
             ColumnRefOperator localOutputColumnRefOp =
-                    columnFactory.create(originalOutputColumnRefOp, intermediateType,
-                            originalOutputColumnRefOp.isNullable());
+                    columnFactory.create(originalOutputColumnRefOp, intermediateType, true);
             localCall.put(localOutputColumnRefOp, localCallOperator);
 
             // because we only support one argument function, so code below is safe

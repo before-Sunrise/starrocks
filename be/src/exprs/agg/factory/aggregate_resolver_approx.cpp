@@ -17,6 +17,7 @@
 #include "exprs/agg/approx_top_k.h"
 #include "exprs/agg/factory/aggregate_factory.hpp"
 #include "exprs/agg/factory/aggregate_resolver.hpp"
+#include "exprs/agg/numeric_histogram.h"
 #include "types/hll.h"
 #include "types/logical_type.h"
 
@@ -68,6 +69,12 @@ void AggregateFuncResolver::register_approx() {
         type_dispatch_all(type, HLLUnionBuilder(), this);
         type_dispatch_all(type, ApproxTopKBuilder(), this);
     }
+
+    // numeric_histogram(buckets, value[, weight]) -> MAP<DOUBLE, DOUBLE>
+    // buckets is required to be BIGINT and constant. value/weight are DOUBLE (FE will cast).
+    add_aggregate_mapping_variadic<TYPE_BIGINT, TYPE_MAP, NumericHistogramState>(
+            "numeric_histogram", false, AggregateFactory::MakeNumericHistogramAggregateFunction());
+
     add_aggregate_mapping<TYPE_HLL, TYPE_HLL, HyperLogLog>("hll_union", false,
                                                            AggregateFactory::MakeHllUnionAggregateFunction());
     add_aggregate_mapping<TYPE_HLL, TYPE_HLL, HyperLogLog>("hll_raw_agg", false,

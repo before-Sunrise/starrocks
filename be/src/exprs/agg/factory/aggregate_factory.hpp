@@ -45,6 +45,7 @@
 #include "exprs/agg/map_agg.h"
 #include "exprs/agg/maxmin.h"
 #include "exprs/agg/maxmin_by.h"
+#include "exprs/agg/numeric_histogram.h"
 #include "exprs/agg/nullable_aggregate.h"
 #include "exprs/agg/percentile_approx.h"
 #include "exprs/agg/percentile_cont.h"
@@ -207,6 +208,8 @@ public:
     static AggregateFunctionPtr MakePercentileApproxWeightedArrayAggregateFunction();
 
     static AggregateFunctionPtr MakePercentileUnionAggregateFunction();
+
+    static AggregateFunctionPtr MakeNumericHistogramAggregateFunction();
 
     template <LogicalType LT>
     static AggregateFunctionPtr MakePercentileContAggregateFunction();

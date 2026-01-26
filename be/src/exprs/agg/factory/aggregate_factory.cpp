@@ -96,6 +96,10 @@ AggregateFunctionPtr AggregateFactory::MakePercentileUnionAggregateFunction() {
     return new PercentileUnionAggregateFunction();
 }
 
+AggregateFunctionPtr AggregateFactory::MakeNumericHistogramAggregateFunction() {
+    return new NumericHistogramAggregateFunction();
+}
+
 AggregateFunctionPtr AggregateFactory::MakeDenseRankWindowFunction() {
     return new DenseRankWindowFunction();
 }

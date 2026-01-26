@@ -286,10 +286,11 @@ StatusOr<ChunkPtr> LocalPartitionTopnContext::pull_one_chunk_from_sorters() {
 MutableColumns LocalPartitionTopnContext::_create_agg_result_columns(size_t num_rows) {
     MutableColumns agg_result_columns(_pre_agg->_agg_fn_types.size());
     for (size_t i = 0; i < _pre_agg->_agg_fn_types.size(); ++i) {
-        // For count, count distinct, bitmap_union_int such as never return null function,
-        // we need to create a not-nullable column.
+        // This column holds the serialized/intermediate aggregation state which will be merged by the upstream
+        // window/aggregation operator. Its nullability must be consistent with the selected aggregate function:
+        // if we chose a nullable wrapper (due to nullable input), `serialize_to_column()` expects a NullableColumn.
         agg_result_columns[i] = ColumnHelper::create_column(_pre_agg->_agg_fn_types[i].result_type,
-                                                            _pre_agg->_agg_fn_types[i].is_nullable);
+                                                            _pre_agg->_agg_fn_types[i].has_nullable_child);
         agg_result_columns[i]->reserve(num_rows);
     }
     return agg_result_columns;

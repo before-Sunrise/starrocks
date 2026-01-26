@@ -66,6 +66,7 @@ import com.starrocks.type.FunctionType;
 import com.starrocks.type.HLLType;
 import com.starrocks.type.IntegerType;
 import com.starrocks.type.JsonType;
+import com.starrocks.type.MapType;
 import com.starrocks.type.NullType;
 import com.starrocks.type.PercentileType;
 import com.starrocks.type.ScalarType;
@@ -360,6 +361,7 @@ public class FunctionSet {
     public static final String DISTINCT_PCSA = "distinct_pcsa";
     public static final String HISTOGRAM = "histogram";
     public static final String HISTOGRAM_HLL_NDV = "histogram_hll_ndv";
+    public static final String NUMERIC_HISTOGRAM = "numeric_histogram";
     public static final String FLAT_JSON_META = "flat_json_meta";
     public static final String COLUMN_SIZE = "column_size";
     public static final String COLUMN_COMPRESSED_SIZE = "column_compressed_size";
@@ -1443,6 +1445,16 @@ public class FunctionSet {
 
         // Percentile
         registerBuiltinPercentileAggFunction();
+
+        // numeric_histogram(buckets, value[, weight]) -> map(double,double)
+        // FE will cast numeric value/weight to DOUBLE.
+        Type numericHistogramRetType = new MapType(FloatType.DOUBLE, FloatType.DOUBLE);
+        addBuiltin(AggregateFunction.createBuiltin(NUMERIC_HISTOGRAM,
+                Lists.newArrayList(IntegerType.BIGINT, FloatType.DOUBLE), numericHistogramRetType, VarbinaryType.VARBINARY,
+                false, false, false));
+        addBuiltin(AggregateFunction.createBuiltin(NUMERIC_HISTOGRAM,
+                Lists.newArrayList(IntegerType.BIGINT, FloatType.DOUBLE, FloatType.DOUBLE), numericHistogramRetType,
+                VarbinaryType.VARBINARY, false, false, false));
 
         // map_agg
         registerBuiltinMapAggFunction();

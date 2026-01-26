@@ -193,7 +193,11 @@ public class ExpressionMapping {
     }
 
     public void addExpressionToColumns(Map<Expr, ColumnRefOperator> expressionToColumns) {
-        this.expressionToColumns.putAll(expressionToColumns);
+        // Don't overwrite existing mappings in current scope.
+        // Expr equality (e.g. SlotRef) does not encode scope/relation-id, so nested queries that reuse the
+        // same table alias can produce "equal" Expr keys that actually refer to different fields.
+        // Overwriting here can corrupt the mapping and lead to incorrect rewrites / very slow planning.
+        expressionToColumns.forEach(this.expressionToColumns::putIfAbsent);
     }
 
     public Map<ColumnRefOperator, ScalarOperator> getColumnRefToConstOperators() {
