@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package com.starrocks.catalog;
+package com.starrocks.sql.analyzer;
 
 import com.starrocks.common.AnalysisException;
 import com.starrocks.sql.ast.SingleRangePartitionDesc;
@@ -23,12 +23,9 @@ import com.starrocks.sql.ast.SingleRangePartitionDesc;
 import java.util.Map;
 
 /**
- * Test-only shim for legacy call sites.
+ * Analyzer helpers for partition descriptors.
  *
- * Some tests historically referenced {@code PartitionDescAnalyzer} without an explicit import. In that case Java
- * resolves the symbol in the current package first (i.e. {@code com.starrocks.catalog.PartitionDescAnalyzer}).
- *
- * This helper keeps those tests compiling while delegating to {@link SingleRangePartitionDesc#analyze(int, Map)}.
+ * <p>This class is primarily used by tests and legacy call sites.</p>
  */
 public final class PartitionDescAnalyzer {
     private PartitionDescAnalyzer() {
