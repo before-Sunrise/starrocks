@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <limits>
 #include <type_traits>
@@ -174,6 +176,13 @@ ResultType calculateResult(CppType junior_elm, CppType senior_elm, double u, siz
     return result;
 }
 
+inline void log_binary_serialize_size_overflow(const char* fn_name, size_t old_size, size_t new_size, size_t uint32_max,
+                                               size_t row_idx = std::numeric_limits<size_t>::max()) {
+    LOG(WARNING) << "Binary serialize size exceeds uint32 range in " << fn_name << ", old_size=" << old_size
+                 << ", new_size=" << new_size << ", uint32_max=" << uint32_max
+                 << ", row_idx=" << (row_idx == std::numeric_limits<size_t>::max() ? -1 : (int64_t)row_idx);
+}
+
 template <LogicalType LT, typename = guard::Guard>
 class PercentileContDiscAggregateFunction
         : public AggregateFunctionBatchHelper<PercentileState<LT>, PercentileContDiscAggregateFunction<LT>> {
@@ -236,6 +245,7 @@ public:
         auto* column = down_cast<BinaryColumn*>(to);
         Bytes& bytes = column->get_bytes();
         size_t old_size = bytes.size();
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
         size_t items_size = this->data(state).items.size();
         size_t grid_items_size = 0;
         for (const auto& vec : this->data(state).grid) {
@@ -245,6 +255,10 @@ public:
 
         // should serialize: rate_size, vector_size, all vector element.
         size_t new_size = old_size + sizeof(double) + sizeof(size_t) + total_items_size * sizeof(InputCppType);
+        if (UNLIKELY(new_size > kMaxBinaryOffset)) {
+            log_binary_serialize_size_overflow("percentile_cont::serialize_to_column", old_size, new_size,
+                                               kMaxBinaryOffset);
+        }
         bytes.resize(new_size);
 
         memcpy(bytes.data() + old_size, &(this->data(state).rate), sizeof(double));
@@ -272,11 +286,19 @@ public:
         auto* dst_column = down_cast<BinaryColumn*>(dst.get());
         Bytes& bytes = dst_column->get_bytes();
         double rate = ColumnHelper::get_const_value<TYPE_DOUBLE>(src[1]);
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
+        bool overflow_logged = false;
         auto src_column = *down_cast<const InputColumnType*>(src[0].get());
         const InputCppType* src_data = src_column.immutable_data().data();
         for (auto i = 0; i < chunk_size; ++i) {
             size_t old_size = bytes.size();
-            bytes.resize(old_size + sizeof(double) + sizeof(size_t) + sizeof(InputCppType));
+            size_t new_size = old_size + sizeof(double) + sizeof(size_t) + sizeof(InputCppType);
+            if (UNLIKELY(!overflow_logged && new_size > kMaxBinaryOffset)) {
+                log_binary_serialize_size_overflow("percentile_cont::convert_to_serialize_format", old_size, new_size,
+                                                   kMaxBinaryOffset, i);
+                overflow_logged = true;
+            }
+            bytes.resize(new_size);
             memcpy(bytes.data() + old_size, &rate, sizeof(double));
             *reinterpret_cast<size_t*>(bytes.data() + old_size + sizeof(double)) = 1UL;
             memcpy(bytes.data() + old_size + sizeof(double) + sizeof(size_t), &src_data[i], sizeof(InputCppType));
@@ -360,6 +382,7 @@ public:
         auto* column = down_cast<BinaryColumn*>(to);
         Bytes& bytes = column->get_bytes();
         size_t old_size = bytes.size();
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
         size_t items_size = this->data(state).items.size();
 
         // should serialize: rate, vector_size, [[element0_size, element0_data],[element1_size, element1_data]...]
@@ -368,6 +391,10 @@ public:
             elements_total_size += (sizeof(size_t) + this->data(state).items[i].get_size());
         }
         size_t new_size = old_size + sizeof(double) + sizeof(size_t) + elements_total_size;
+        if (UNLIKELY(new_size > kMaxBinaryOffset)) {
+            log_binary_serialize_size_overflow("percentile_cont<string>::serialize_to_column", old_size, new_size,
+                                               kMaxBinaryOffset);
+        }
         bytes.resize(new_size);
 
         memcpy(bytes.data() + old_size, &(this->data(state).rate), sizeof(double));
@@ -394,13 +421,21 @@ public:
         auto* dst_column = down_cast<BinaryColumn*>(dst.get());
         Bytes& bytes = dst_column->get_bytes();
         double rate = ColumnHelper::get_const_value<TYPE_DOUBLE>(src[1]);
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
+        bool overflow_logged = false;
 
         auto src_column = *down_cast<const BinaryColumn*>(src[0].get());
         const auto& src_data = src_column.get_proxy_data();
         for (auto i = 0; i < chunk_size; ++i) {
             size_t old_size = bytes.size();
             // [rate, 1, element ith size, element ith data]
-            bytes.resize(old_size + sizeof(double) + sizeof(size_t) + sizeof(size_t) + src_data[i].get_size());
+            size_t new_size = old_size + sizeof(double) + sizeof(size_t) + sizeof(size_t) + src_data[i].get_size();
+            if (UNLIKELY(!overflow_logged && new_size > kMaxBinaryOffset)) {
+                log_binary_serialize_size_overflow("percentile_cont<string>::convert_to_serialize_format", old_size,
+                                                   new_size, kMaxBinaryOffset, i);
+                overflow_logged = true;
+            }
+            bytes.resize(new_size);
             memcpy(bytes.data() + old_size, &rate, sizeof(double));
             *reinterpret_cast<size_t*>(bytes.data() + old_size + sizeof(double)) = 1UL;
             *reinterpret_cast<size_t*>(bytes.data() + old_size + sizeof(double) + sizeof(size_t)) =
@@ -416,9 +451,95 @@ template <LogicalType LT>
 class PercentileContAggregateFunction final : public PercentileContDiscAggregateFunction<LT> {
     using InputCppType = RunTimeCppType<LT>;
     using InputColumnType = RunTimeColumnType<LT>;
+    using ItemType = typename PercentileStateTypes<LT>::ItemType;
+    using GridType = typename PercentileStateTypes<LT>::GridType;
     static constexpr auto ResultLT = PercentileResultLT<LT, true>;
     using ResultType = RunTimeCppType<ResultLT>;
     using ResultColumnType = RunTimeColumnType<ResultLT>;
+
+    struct NumericInputStats {
+        size_t total_count = 0;
+        size_t nan_count = 0;
+        size_t pos_inf_count = 0;
+        size_t neg_inf_count = 0;
+        size_t finite_count = 0;
+        double min_finite = 0;
+        double max_finite = 0;
+    };
+
+    static void _update_numeric_stats(NumericInputStats& stats, InputCppType value) {
+        stats.total_count++;
+        double v = static_cast<double>(value);
+        if (std::isnan(v)) {
+            stats.nan_count++;
+            return;
+        }
+        if (std::isinf(v)) {
+            if (v > 0) {
+                stats.pos_inf_count++;
+            } else {
+                stats.neg_inf_count++;
+            }
+            return;
+        }
+        if (stats.finite_count == 0) {
+            stats.min_finite = v;
+            stats.max_finite = v;
+        } else {
+            stats.min_finite = std::min(stats.min_finite, v);
+            stats.max_finite = std::max(stats.max_finite, v);
+        }
+        stats.finite_count++;
+    }
+
+    static NumericInputStats _collect_numeric_stats_from_items(const ItemType& items) {
+        NumericInputStats stats;
+        for (const auto& value : items) {
+            _update_numeric_stats(stats, value);
+        }
+        return stats;
+    }
+
+    static NumericInputStats _collect_numeric_stats_from_grid(const GridType& grid) {
+        NumericInputStats stats;
+        // grid vectors include sentinels at [0] and [size - 1], skip them.
+        for (const auto& vec : grid) {
+            for (size_t i = 1; i + 1 < vec.size(); ++i) {
+                _update_numeric_stats(stats, vec[i]);
+            }
+        }
+        return stats;
+    }
+
+    static void _log_nan_result_for_items(double rate, size_t item_size, double u, size_t index,
+                                          InputCppType junior_elm, InputCppType senior_elm, ResultType result,
+                                          const ItemType& items) {
+        auto stats = _collect_numeric_stats_from_items(items);
+        LOG(WARNING) << "percentile_cont returns NaN, mode=items"
+                     << ", rate=" << rate << ", item_size=" << item_size << ", u=" << u << ", index=" << index
+                     << ", junior=" << junior_elm << ", senior=" << senior_elm << ", result=" << result
+                     << ", rate_is_nan=" << std::isnan(rate) << ", rate_is_inf=" << std::isinf(rate)
+                     << ", u_is_nan=" << std::isnan(u) << ", u_is_inf=" << std::isinf(u)
+                     << ", input_total=" << stats.total_count << ", input_nan=" << stats.nan_count
+                     << ", input_pos_inf=" << stats.pos_inf_count << ", input_neg_inf=" << stats.neg_inf_count
+                     << ", input_finite=" << stats.finite_count << ", input_finite_min=" << stats.min_finite
+                     << ", input_finite_max=" << stats.max_finite;
+    }
+
+    static void _log_nan_result_for_grid(double rate, size_t rows_num, size_t k, bool reverse, double u, size_t index,
+                                         size_t goal, InputCppType junior_elm, InputCppType senior_elm,
+                                         ResultType result, const GridType& grid) {
+        auto stats = _collect_numeric_stats_from_grid(grid);
+        LOG(WARNING) << "percentile_cont returns NaN, mode=grid"
+                     << ", rate=" << rate << ", rows_num=" << rows_num << ", grid_size=" << k << ", reverse=" << reverse
+                     << ", u=" << u << ", index=" << index << ", goal=" << goal << ", junior=" << junior_elm
+                     << ", senior=" << senior_elm << ", result=" << result << ", rate_is_nan=" << std::isnan(rate)
+                     << ", rate_is_inf=" << std::isinf(rate) << ", u_is_nan=" << std::isnan(u)
+                     << ", u_is_inf=" << std::isinf(u) << ", input_total=" << stats.total_count
+                     << ", input_nan=" << stats.nan_count << ", input_pos_inf=" << stats.pos_inf_count
+                     << ", input_neg_inf=" << stats.neg_inf_count << ", input_finite=" << stats.finite_count
+                     << ", input_finite_min=" << stats.min_finite << ", input_finite_max=" << stats.max_finite;
+    }
 
     void finalize_to_column(FunctionContext* ctx, ConstAggDataPtr __restrict state, Column* to) const override {
         const auto& grid = this->data(state).grid;
@@ -442,6 +563,12 @@ class PercentileContAggregateFunction final : public PercentileContDiscAggregate
             auto index = (size_t)u;
 
             ResultType result = calculateResult<LT, InputCppType, ResultType>(items[index], items[index + 1], u, index);
+            if constexpr (lt_is_arithmetic<LT>) {
+                if (UNLIKELY(std::isnan(result))) {
+                    _log_nan_result_for_items(rate, items.size(), u, index, items[index], items[index + 1], result,
+                                              items);
+                }
+            }
             column->append(result);
             return;
         }
@@ -480,13 +607,31 @@ class PercentileContAggregateFunction final : public PercentileContDiscAggregate
 
         if (rate == 0) {
             column->append(junior_elm);
+            if constexpr (lt_is_arithmetic<LT>) {
+                if (UNLIKELY(std::isnan(junior_elm))) {
+                    _log_nan_result_for_grid(rate, rowsNum, k, reverse, u, index, goal, junior_elm, senior_elm,
+                                             junior_elm, grid);
+                }
+            }
             return;
         } else if (rate == 1) {
             column->append(senior_elm);
+            if constexpr (lt_is_arithmetic<LT>) {
+                if (UNLIKELY(std::isnan(senior_elm))) {
+                    _log_nan_result_for_grid(rate, rowsNum, k, reverse, u, index, goal, junior_elm, senior_elm,
+                                             senior_elm, grid);
+                }
+            }
             return;
         }
 
         ResultType result = calculateResult<LT, InputCppType, ResultType>(junior_elm, senior_elm, u, index);
+        if constexpr (lt_is_arithmetic<LT>) {
+            if (UNLIKELY(std::isnan(result))) {
+                _log_nan_result_for_grid(rate, rowsNum, k, reverse, u, index, goal, junior_elm, senior_elm, result,
+                                         grid);
+            }
+        }
         column->append(result);
     }
 
@@ -794,6 +939,7 @@ public:
         auto* column = down_cast<BinaryColumn*>(to);
         Bytes& bytes = column->get_bytes();
         size_t old_size = bytes.size();
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
         const auto& st = this->data(state);
 
         size_t items_size = st.items.size();
@@ -806,6 +952,10 @@ public:
         // header: value_scale(int32), rate_scale(int32), rate_int(InputCppType), vector_size(size_t), elements...
         size_t header_size = sizeof(int32_t) + sizeof(int32_t) + sizeof(InputCppType) + sizeof(size_t);
         size_t new_size = old_size + header_size + total_items_size * sizeof(InputCppType);
+        if (UNLIKELY(new_size > kMaxBinaryOffset)) {
+            log_binary_serialize_size_overflow("percentile_cont<decimal>::serialize_to_column", old_size, new_size,
+                                               kMaxBinaryOffset);
+        }
         bytes.resize(new_size);
 
         uint8_t* cur = bytes.data() + old_size;
@@ -842,6 +992,8 @@ public:
         // src[0]=value, src[1]=rate(const)
         auto* dst_column = down_cast<BinaryColumn*>(dst.get());
         Bytes& bytes = dst_column->get_bytes();
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
+        bool overflow_logged = false;
 
         const auto* value_col = down_cast<const InputColumnType*>(src[0].get());
         int32_t value_scale = value_col->scale();
@@ -867,7 +1019,13 @@ public:
         size_t header_size = sizeof(int32_t) + sizeof(int32_t) + sizeof(InputCppType) + sizeof(size_t);
         for (auto i = 0; i < chunk_size; ++i) {
             size_t old_size = bytes.size();
-            bytes.resize(old_size + header_size + sizeof(InputCppType));
+            size_t new_size = old_size + header_size + sizeof(InputCppType);
+            if (UNLIKELY(!overflow_logged && new_size > kMaxBinaryOffset)) {
+                log_binary_serialize_size_overflow("percentile_cont<decimal>::convert_to_serialize_format", old_size,
+                                                   new_size, kMaxBinaryOffset, i);
+                overflow_logged = true;
+            }
+            bytes.resize(new_size);
             uint8_t* cur = bytes.data() + old_size;
             memcpy(cur, &value_scale, sizeof(int32_t));
             cur += sizeof(int32_t);
@@ -1160,6 +1318,11 @@ public:
         Bytes& bytes = column->get_bytes();
         size_t old_size = bytes.size();
         size_t new_size = old_size + serialize_size;
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
+        if (UNLIKELY(new_size > kMaxBinaryOffset)) {
+            log_binary_serialize_size_overflow("lc_percentile::serialize_to_column", old_size, new_size,
+                                               kMaxBinaryOffset);
+        }
         bytes.resize(new_size);
 
         this->data(state).serialize(Slice(bytes.data() + old_size, serialize_size));
@@ -1176,6 +1339,11 @@ public:
         Bytes& bytes = column->get_bytes();
         size_t old_size = bytes.size();
         size_t new_size = old_size + serialize_size;
+        constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
+        if (UNLIKELY(new_size > kMaxBinaryOffset)) {
+            log_binary_serialize_size_overflow("lc_percentile::convert_to_serialize_format", old_size, new_size,
+                                               kMaxBinaryOffset);
+        }
         bytes.resize(new_size);
         unsigned char* cur = bytes.data() + old_size;
 
