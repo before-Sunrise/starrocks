@@ -981,12 +981,12 @@ public:
     }
 
     void convert_to_serialize_format(FunctionContext* ctx, const Columns& src, size_t chunk_size,
-                                     MutableColumnPtr& dst) const override {
+                                     ColumnPtr* dst) const override {
         if (chunk_size <= 0) {
             return;
         }
         // src[0]=value, src[1]=rate(const)
-        auto* dst_column = down_cast<BinaryColumn*>(dst.get());
+        auto* dst_column = down_cast<BinaryColumn*>((*dst).get());
         Bytes& bytes = dst_column->get_bytes();
         constexpr size_t kMaxBinaryOffset = std::numeric_limits<uint32_t>::max();
         bool overflow_logged = false;
