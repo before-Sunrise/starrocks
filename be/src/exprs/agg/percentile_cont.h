@@ -880,7 +880,7 @@ public:
                 size_t row_num) const override {
         this->init_state_if_needed(ctx, columns, state);
         const auto& column = down_cast<const InputColumnType&>(*columns[0]);
-        auto column_data = column.immutable_data();
+        const auto& column_data = column.get_data();
         this->data(state).update(column_data[row_num]);
     }
 
@@ -888,7 +888,7 @@ public:
                                    AggDataPtr __restrict state) const override {
         this->init_state_if_needed(ctx, columns, state);
         const auto& column = down_cast<const InputColumnType&>(*columns[0]);
-        auto column_data = column.immutable_data();
+        const auto& column_data = column.get_data();
         this->data(state).update_batch(column_data);
     }
 
@@ -1009,8 +1009,8 @@ public:
             static_assert(lt_is_decimal<LT>, "percentile_cont(decimal, decimal) only supports DECIMALV3");
         }
 
-        auto src_column = *down_cast<const InputColumnType*>(src[0].get());
-        const InputCppType* src_data = src_column.immutable_data().data();
+        const auto& src_column = *down_cast<const InputColumnType*>(src[0].get());
+        const InputCppType* src_data = src_column.get_data().data();
 
         size_t header_size = sizeof(int32_t) + sizeof(int32_t) + sizeof(InputCppType) + sizeof(size_t);
         for (auto i = 0; i < chunk_size; ++i) {
