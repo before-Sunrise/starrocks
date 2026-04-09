@@ -16,9 +16,12 @@ package com.starrocks.sql.plan;
 
 import com.starrocks.common.profile.Timer;
 import com.starrocks.common.profile.Tracers;
+import com.starrocks.qe.StmtExecutor;
 import com.starrocks.qe.recursivecte.RecursiveCTEAstCheck;
 import com.starrocks.qe.recursivecte.RecursiveCTEExecutor;
 import com.starrocks.sql.analyzer.SemanticException;
+import com.starrocks.sql.ast.AstTraverser;
+import com.starrocks.sql.ast.CTERelation;
 import com.starrocks.sql.ast.StatementBase;
 import com.starrocks.sql.parser.SqlParser;
 import org.junit.jupiter.api.Assertions;
@@ -27,6 +30,18 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 public class RecursiveCTETest extends PlanTestBase {
+
+    private boolean hasRecursiveCTERelation(StatementBase statement) {
+        final boolean[] hasRecursiveCTERelation = {false};
+        new AstTraverser<Void, Void>() {
+            @Override
+            public Void visitCTE(CTERelation node, Void context) {
+                hasRecursiveCTERelation[0] = hasRecursiveCTERelation[0] || node.isRecursive();
+                return super.visitCTE(node, context);
+            }
+        }.visit(statement);
+        return hasRecursiveCTERelation[0];
+    }
 
     public String explainRecursiveCte(String sql) throws Exception {
         List<StatementBase> statements;
@@ -184,5 +199,46 @@ public class RecursiveCTETest extends PlanTestBase {
         assertContains(plan, "Recursive Statement: SELECT `cte1`.`v1` + 1 AS `v1 + 1`, `cte2`.`v5` + 1");
         assertContains(plan, "Outer Statement After Rewriting:\n"
                 + "WITH RECURSIVE `cte2`");
+    }
+
+    @Test
+    public void testNonRecursiveCTECanReferenceEarlierRecursiveCTE() throws Exception {
+        String sql = "with recursive "
+                + "r as (select 1 as n union all select n + 1 from r where n < 5), "
+                + "x as (select n from r where n >= 3) "
+                + "select * from x order by n";
+        String plan = explainRecursiveCte(sql);
+        assertContains(plan, "Recursive CTE Name: r\n"
+                + "Temporary Table: r_");
+        assertContains(plan, "Outer Statement After Rewriting:\n"
+                + "WITH RECURSIVE `x` (`n`) AS (SELECT `r`.`n`");
+        assertContains(plan, "FROM (SELECT `test`.`r_");
+    }
+
+    @Test
+    public void testQueryScopeHintEnablesRecursiveCTEForFollowingNormalCTE() throws Exception {
+        String sql = "with recursive "
+                + "r as (select 1 as n union all select n + 1 from r where n < 5), "
+                + "x as (select n from r where n >= 3) "
+                + "select /*+ SET_VAR(enable_recursive_cte=true, recursive_cte_max_depth=10)*/ * from x order by n";
+        connectContext.getSessionVariable().setEnableRecursiveCTE(false);
+        StatementBase statement = SqlParser.parseSingleStatement(sql, connectContext.getSessionVariable().getSqlMode());
+        StmtExecutor executor = new StmtExecutor(connectContext, statement);
+        executor.processQueryScopeHint();
+        Assertions.assertTrue(connectContext.getSessionVariable().isEnableRecursiveCTE());
+        Assertions.assertTrue(RecursiveCTEAstCheck.hasRecursiveCte(statement, connectContext));
+    }
+
+    @Test
+    public void testSplitOuterStmtRemovesRecursiveCTEFromFollowingNormalCTE() throws Exception {
+        String sql = "with recursive "
+                + "r as (select 1 as n union all select n + 1 from r where n < 5), "
+                + "x as (select n from r where n >= 3) "
+                + "select * from x order by n";
+        connectContext.getSessionVariable().setEnableRecursiveCTE(true);
+        StatementBase statement = SqlParser.parseSingleStatement(sql, connectContext.getSessionVariable().getSqlMode());
+        RecursiveCTEExecutor executor = new RecursiveCTEExecutor(connectContext);
+        StatementBase rewritten = executor.splitOuterStmt(statement);
+        Assertions.assertFalse(hasRecursiveCTERelation(rewritten));
     }
 }

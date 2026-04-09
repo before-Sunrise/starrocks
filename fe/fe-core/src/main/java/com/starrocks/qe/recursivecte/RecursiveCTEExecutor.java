@@ -257,52 +257,59 @@ public class RecursiveCTEExecutor {
     }
 
     private class RecursiveCTESplitter extends AstTraverser<Void, Void> {
-        private final List<CTERelation> nonRecursiveCTEs = Lists.newArrayList();
+        private final List<CTERelation> visibleNonRecursiveCTEs = Lists.newArrayList();
 
         @Override
         public Void visitSelect(SelectRelation node, Void context) {
-            if (node.hasWithClause()) {
-                List<CTERelation> cteRelations = Lists.newArrayList();
-                for (CTERelation cteRelation : node.getCteRelations()) {
-                    if (cteRelation.isRecursive()) {
-                        visit(cteRelation, context);
-                    } else {
-                        nonRecursiveCTEs.add(cteRelation);
-                        cteRelations.add(cteRelation);
+            int originalVisibleNonRecursiveCteCount = visibleNonRecursiveCTEs.size();
+            try {
+                if (node.hasWithClause()) {
+                    List<CTERelation> cteRelations = Lists.newArrayList();
+                    for (CTERelation cteRelation : node.getCteRelations()) {
+                        if (cteRelation.isRecursive()) {
+                            visit(cteRelation, context);
+                        } else {
+                            visit(cteRelation.getCteQueryStatement().getQueryRelation(), context);
+                            visibleNonRecursiveCTEs.add(cteRelation);
+                            cteRelations.add(cteRelation);
+                        }
+                    }
+                    node.getCteRelations().clear();
+                    node.getCteRelations().addAll(cteRelations);
+                }
+
+                if (node.getOrderBy() != null) {
+                    for (OrderByElement orderByElement : node.getOrderBy()) {
+                        visit(orderByElement.getExpr(), context);
                     }
                 }
-                node.getCteRelations().clear();
-                node.getCteRelations().addAll(cteRelations);
-            }
 
-            if (node.getOrderBy() != null) {
-                for (OrderByElement orderByElement : node.getOrderBy()) {
-                    visit(orderByElement.getExpr(), context);
+                if (node.getOutputExpression() != null) {
+                    node.getOutputExpression().forEach(x -> visit(x, context));
                 }
-            }
 
-            if (node.getOutputExpression() != null) {
-                node.getOutputExpression().forEach(x -> visit(x, context));
-            }
+                if (node.getPredicate() != null) {
+                    visit(node.getPredicate(), context);
+                }
 
-            if (node.getPredicate() != null) {
-                visit(node.getPredicate(), context);
-            }
+                if (node.getGroupBy() != null) {
+                    node.getGroupBy().forEach(x -> visit(x, context));
+                }
 
-            if (node.getGroupBy() != null) {
-                node.getGroupBy().forEach(x -> visit(x, context));
-            }
+                if (node.getAggregate() != null) {
+                    node.getAggregate().forEach(x -> visit(x, context));
+                }
 
-            if (node.getAggregate() != null) {
-                node.getAggregate().forEach(x -> visit(x, context));
-            }
+                if (node.getHaving() != null) {
+                    visit(node.getHaving(), context);
+                }
 
-            if (node.getHaving() != null) {
-                visit(node.getHaving(), context);
+                node.setRelation(rewriteCTERelation(node.getRelation(), context));
+                return null;
+            } finally {
+                visibleNonRecursiveCTEs.subList(originalVisibleNonRecursiveCteCount,
+                        visibleNonRecursiveCTEs.size()).clear();
             }
-
-            node.setRelation(rewriteCTERelation(node.getRelation(), context));
-            return null;
         }
 
         private Relation rewriteCTERelation(Relation relation, Void context) {
@@ -383,7 +390,7 @@ public class RecursiveCTEExecutor {
                     new SelectList(List.of(new SelectListItem(subquery.getAlias()),
                             new SelectListItem(new IntLiteral(0, IntegerType.INT), levelColumnName)), isDistinct),
                     subquery, null, null, null);
-            startSelect.getCteRelations().addAll(nonRecursiveCTEs);
+            startSelect.getCteRelations().addAll(visibleNonRecursiveCTEs);
 
             QueryStatement start = new QueryStatement(startSelect);
             QueryStatement recursive;
@@ -396,7 +403,7 @@ public class RecursiveCTEExecutor {
             }
 
             recursiveCTEGroups.put(node.getName(), new RecursiveCTEGroup(start, recursive, isDistinct,
-                    List.copyOf(nonRecursiveCTEs), tempTableStmt, levelColumnName));
+                    List.copyOf(visibleNonRecursiveCTEs), tempTableStmt, levelColumnName));
             cteTempTableMap.put(node.getName(), tableRef);
 
             visit(start.getQueryRelation());

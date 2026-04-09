@@ -236,3 +236,19 @@ manager_chain AS (
 SELECT /*+ SET_VAR(enable_recursive_cte=true)*/ employee_id, name, title, steps, id
 FROM manager_chain, const_cte
 ORDER BY steps;
+
+-- Test 13: Non-recursive CTE can reference an earlier recursive CTE
+WITH RECURSIVE
+numbers AS (
+    SELECT cast(1 as bigint) AS n
+    UNION ALL
+    SELECT n + 1 FROM numbers WHERE n < 5
+),
+filtered_numbers AS (
+    SELECT n
+    FROM numbers
+    WHERE n >= 3
+)
+SELECT /*+ SET_VAR(enable_recursive_cte=true, recursive_cte_max_depth=10)*/ n
+FROM filtered_numbers
+ORDER BY n;

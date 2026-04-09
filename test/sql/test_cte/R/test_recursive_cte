@@ -345,3 +345,22 @@ ORDER BY steps;
 2	Bob	CTO	3	10
 1	Alicia	CEO	4	10
 -- !result
+WITH RECURSIVE
+numbers AS (
+    SELECT cast(1 as bigint) AS n
+    UNION ALL
+    SELECT n + 1 FROM numbers WHERE n < 5
+),
+filtered_numbers AS (
+    SELECT n
+    FROM numbers
+    WHERE n >= 3
+)
+SELECT /*+ SET_VAR(enable_recursive_cte=true, recursive_cte_max_depth=10)*/ n
+FROM filtered_numbers
+ORDER BY n;
+-- result:
+3
+4
+5
+-- !result
