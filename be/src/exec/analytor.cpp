@@ -21,6 +21,7 @@
 #include "base/utility/defer_op.h"
 #include "column/chunk.h"
 #include "column/column_helper.h"
+#include "column/column_sorter_comparator.h"
 #include "column/column_viewer.h"
 #include "common/config_exec_flow_fwd.h"
 #include "common/runtime_profile.h"
@@ -582,13 +583,17 @@ std::string Analytor::debug_string() const {
     std::stringstream ss;
     ss << std::boolalpha;
 
-    FrameRange frame = _get_frame_range();
     ss << "current_row_position=" << _get_global_position(_current_row_position) << ", partition=("
        << _get_global_position(_partition.start) << ", " << _get_global_position(_partition.end) << "/"
        << _partition.is_real << "), peer_group=(" << _get_global_position(_peer_group.start) << ", "
-       << _get_global_position(_peer_group.end) << "/" << _peer_group.is_real << ")"
-       << ", frame=[" << frame.start << ", " << frame.end << ")"
-       << ", input_chunks_size=" << _input_chunks.size() << ", output_chunk_index=" << _output_chunk_index
+       << _get_global_position(_peer_group.end) << "/" << _peer_group.is_real << ")";
+    if (_is_range_offset_window) {
+        ss << ", frame=<range-offset>";
+    } else {
+        FrameRange frame = _get_frame_range();
+        ss << ", frame=[" << frame.start << ", " << frame.end << ")";
+    }
+    ss << ", input_chunks_size=" << _input_chunks.size() << ", output_chunk_index=" << _output_chunk_index
        << ", removed_from_buffer_rows=" << _removed_from_buffer_rows
        << ", removed_chunk_index=" << _removed_chunk_index;
 
@@ -669,37 +674,56 @@ ColumnPtr immutable_column_view(const MutableColumnPtr& column) {
 }
 
 template <LogicalType LT>
-int64_t find_range_frame_start_with_offset(const ColumnViewer<LT>& viewer, int64_t start, int64_t end,
-                                           const RunTimeCppType<LT>& boundary_value, bool order_is_asc) {
-    int64_t left = start;
-    int64_t right = end;
-    while (left < right) {
-        int64_t mid = left + ((right - left) >> 1);
-        auto value = viewer.value(mid);
-        if (order_is_asc ? (value < boundary_value) : (value > boundary_value)) {
-            left = mid + 1;
-        } else {
-            right = mid;
-        }
-    }
-    return left;
+bool range_value_before_start(const RunTimeCppType<LT>& value, const RunTimeCppType<LT>& boundary_value,
+                              bool order_is_asc) {
+    const int cmp = SorterComparator<RunTimeCppType<LT>>::compare(value, boundary_value);
+    return order_is_asc ? (cmp < 0) : (cmp > 0);
 }
 
 template <LogicalType LT>
-int64_t find_range_frame_end_with_offset(const ColumnViewer<LT>& viewer, int64_t start, int64_t end,
-                                         const RunTimeCppType<LT>& boundary_value, bool order_is_asc) {
-    int64_t left = start;
-    int64_t right = end;
-    while (left < right) {
-        int64_t mid = left + ((right - left) >> 1);
-        auto value = viewer.value(mid);
-        if (order_is_asc ? (value <= boundary_value) : (value >= boundary_value)) {
-            left = mid + 1;
-        } else {
-            right = mid;
-        }
+bool range_value_before_or_at_end(const RunTimeCppType<LT>& value, const RunTimeCppType<LT>& boundary_value,
+                                  bool order_is_asc) {
+    const int cmp = SorterComparator<RunTimeCppType<LT>>::compare(value, boundary_value);
+    return order_is_asc ? (cmp <= 0) : (cmp >= 0);
+}
+
+inline int64_t normalize_range_cursor(int64_t cursor, int64_t start, int64_t end) {
+    if (cursor < start) {
+        return start;
     }
-    return left;
+    if (cursor > end) {
+        return end;
+    }
+    return cursor;
+}
+
+template <LogicalType LT>
+int64_t seek_range_frame_start_with_offset(const ColumnViewer<LT>& viewer, int64_t start, int64_t end, int64_t cursor,
+                                           const RunTimeCppType<LT>& boundary_value, bool order_is_asc) {
+    // Constant offsets make boundary keys monotonic in physical order, so cursors only move forward.
+    cursor = normalize_range_cursor(cursor, start, end);
+    while (cursor < end) {
+        auto value = viewer.value(cursor);
+        if (!range_value_before_start<LT>(value, boundary_value, order_is_asc)) {
+            break;
+        }
+        ++cursor;
+    }
+    return cursor;
+}
+
+template <LogicalType LT>
+int64_t seek_range_frame_end_with_offset(const ColumnViewer<LT>& viewer, int64_t start, int64_t end, int64_t cursor,
+                                         const RunTimeCppType<LT>& boundary_value, bool order_is_asc) {
+    cursor = normalize_range_cursor(cursor, start, end);
+    while (cursor < end) {
+        auto value = viewer.value(cursor);
+        if (!range_value_before_or_at_end<LT>(value, boundary_value, order_is_asc)) {
+            break;
+        }
+        ++cursor;
+    }
+    return cursor;
 }
 
 #define APPLY_RANGE_ORDER_TYPES(M) \
@@ -724,6 +748,7 @@ void Analytor::_compute_range_nonnull_segment() {
     _range_nonnull_end = _partition.end;
     if (_order_columns.empty()) {
         _range_nonnull_segment_valid = true;
+        _reset_range_frame_cursors();
         return;
     }
     switch (_range_order_type.type) {
@@ -744,39 +769,50 @@ void Analytor::_compute_range_nonnull_segment() {
         break;
     }
     _range_nonnull_segment_valid = true;
+    _reset_range_frame_cursors();
 }
 
-int64_t Analytor::_find_range_frame_start_with_offset(const Datum& boundary_value) const {
+void Analytor::_reset_range_frame_cursors() {
+    _range_start_frame_cursor = _range_nonnull_start;
+    _range_end_frame_cursor = _range_nonnull_start;
+}
+
+int64_t Analytor::_seek_range_frame_start_with_offset(const Datum& boundary_value) {
     switch (_range_order_type.type) {
-#define FIND_START_CASE(LT)                                                                     \
-    case LT: {                                                                                  \
-        ColumnViewer<LT> viewer(immutable_column_view(_order_columns[0]));                      \
-        return find_range_frame_start_with_offset<LT>(viewer, _range_nonnull_start, _range_nonnull_end, \
-                                                      boundary_value.get<RunTimeCppType<LT>>(), _range_order_is_asc); \
+#define SEEK_START_CASE(LT)                                                                  \
+    case LT: {                                                                               \
+        ColumnViewer<LT> viewer(immutable_column_view(_order_columns[0]));                   \
+        _range_start_frame_cursor = seek_range_frame_start_with_offset<LT>(                  \
+                viewer, _range_nonnull_start, _range_nonnull_end, _range_start_frame_cursor, \
+                boundary_value.get<RunTimeCppType<LT>>(), _range_order_is_asc);              \
+        return _range_start_frame_cursor;                                                    \
     }
-        APPLY_RANGE_ORDER_TYPES(FIND_START_CASE)
-#undef FIND_START_CASE
+        APPLY_RANGE_ORDER_TYPES(SEEK_START_CASE)
+#undef SEEK_START_CASE
     default:
         return _range_nonnull_start;
     }
 }
 
-int64_t Analytor::_find_range_frame_end_with_offset(const Datum& boundary_value) const {
+int64_t Analytor::_seek_range_frame_end_with_offset(const Datum& boundary_value) {
     switch (_range_order_type.type) {
-#define FIND_END_CASE(LT)                                                                       \
-    case LT: {                                                                                  \
-        ColumnViewer<LT> viewer(immutable_column_view(_order_columns[0]));                      \
-        return find_range_frame_end_with_offset<LT>(viewer, _range_nonnull_start, _range_nonnull_end, \
-                                                    boundary_value.get<RunTimeCppType<LT>>(), _range_order_is_asc); \
+#define SEEK_END_CASE(LT)                                                                  \
+    case LT: {                                                                             \
+        ColumnViewer<LT> viewer(immutable_column_view(_order_columns[0]));                 \
+        _range_end_frame_cursor = seek_range_frame_end_with_offset<LT>(                    \
+                viewer, _range_nonnull_start, _range_nonnull_end, _range_end_frame_cursor, \
+                boundary_value.get<RunTimeCppType<LT>>(), _range_order_is_asc);            \
+        return _range_end_frame_cursor;                                                    \
     }
-        APPLY_RANGE_ORDER_TYPES(FIND_END_CASE)
-#undef FIND_END_CASE
+        APPLY_RANGE_ORDER_TYPES(SEEK_END_CASE)
+#undef SEEK_END_CASE
     default:
         return _range_nonnull_end;
     }
 }
 
-int64_t Analytor::_resolve_range_boundary(const RangeBoundarySpec& boundary, bool is_start, bool current_row_is_null) const {
+int64_t Analytor::_resolve_range_offset_boundary(const RangeBoundarySpec& boundary, bool is_start,
+                                                 bool current_row_is_null) {
     switch (boundary.type) {
     case RangeBoundaryType::UNBOUNDED_PRECEDING:
         return _partition.start;
@@ -799,22 +835,41 @@ int64_t Analytor::_resolve_range_boundary(const RangeBoundarySpec& boundary, boo
 
     Datum boundary_value;
     switch (_range_order_type.type) {
-#define LOAD_BOUNDARY_CASE(LT)                                      \
-    case LT: {                                                      \
+#define LOAD_BOUNDARY_FOR_SEEK_CASE(LT)                                  \
+    case LT: {                                                           \
         ColumnViewer<LT> viewer(immutable_column_view(boundary.column)); \
-        if (viewer.is_null(_current_row_position)) {                \
+        if (viewer.is_null(_current_row_position)) {                     \
             return is_start ? _range_nonnull_end : _range_nonnull_start; \
-        }                                                           \
-        boundary_value = Datum(viewer.value(_current_row_position)); \
-        break;                                                      \
+        }                                                                \
+        boundary_value = Datum(viewer.value(_current_row_position));     \
+        break;                                                           \
     }
-        APPLY_RANGE_ORDER_TYPES(LOAD_BOUNDARY_CASE)
-#undef LOAD_BOUNDARY_CASE
+        APPLY_RANGE_ORDER_TYPES(LOAD_BOUNDARY_FOR_SEEK_CASE)
+#undef LOAD_BOUNDARY_FOR_SEEK_CASE
     default:
         return is_start ? _partition.start : _partition.end;
     }
-    return is_start ? _find_range_frame_start_with_offset(boundary_value)
-                    : _find_range_frame_end_with_offset(boundary_value);
+    return is_start ? _seek_range_frame_start_with_offset(boundary_value)
+                    : _seek_range_frame_end_with_offset(boundary_value);
+}
+
+Analytor::FrameRange Analytor::_get_range_offset_frame_range() {
+    bool current_row_is_null = false;
+    if (!_order_columns.empty()) {
+        current_row_is_null = _order_columns[0]->is_null(_current_row_position);
+    }
+    if (!_range_nonnull_segment_valid) {
+        _compute_range_nonnull_segment();
+    }
+
+    int64_t frame_start = _resolve_range_offset_boundary(_range_start_boundary, true, current_row_is_null);
+    int64_t frame_end = _resolve_range_offset_boundary(_range_end_boundary, false, current_row_is_null);
+    frame_start = std::max<int64_t>(frame_start, _partition.start);
+    frame_end = std::min<int64_t>(frame_end, _partition.end);
+    if (frame_end < frame_start) {
+        frame_end = frame_start;
+    }
+    return {frame_start, frame_end};
 }
 
 #undef APPLY_RANGE_ORDER_TYPES
@@ -906,6 +961,12 @@ void Analytor::_remove_unused_rows(RuntimeState* state) {
     _current_row_position -= remove_rows;
     _partition.remove_first_n(remove_rows);
     _peer_group.remove_first_n(remove_rows);
+    if (_range_nonnull_segment_valid) {
+        _range_nonnull_start -= remove_rows;
+        _range_nonnull_end -= remove_rows;
+        _range_start_frame_cursor -= remove_rows;
+        _range_end_frame_cursor -= remove_rows;
+    }
     int32_t candidate_partition_end_size = _candidate_partition_ends.size();
     while (--candidate_partition_end_size >= 0) {
         auto peek = _candidate_partition_ends.front();
@@ -1290,6 +1351,10 @@ void Analytor::_materializing_process_for_half_unbounded_range_frame(RuntimeStat
 }
 
 void Analytor::_materializing_process_for_sliding_frame(RuntimeState* state) {
+    if (_is_range_offset_window) {
+        _materializing_process_for_range_offset_frame(state);
+        return;
+    }
     if (_use_removable_cumulative_process) {
         while (_current_row_position < _partition.end && !_is_current_chunk_finished_eval()) {
             _update_window_batch_removable_cumulatively();
@@ -1310,6 +1375,32 @@ void Analytor::_materializing_process_for_sliding_frame(RuntimeState* state) {
             _get_window_function_result(_window_result_position(), _window_result_position() + 1);
             _update_current_row_position(1);
         }
+    }
+}
+
+void Analytor::_materializing_process_for_range_offset_frame(RuntimeState* state) {
+    const auto chunk_size = static_cast<int64_t>(_current_chunk_size());
+    while (_current_row_position < _partition.end && !_is_current_chunk_finished_eval()) {
+        _find_peer_group_end();
+        DCHECK(_peer_group.is_real);
+
+        if (_current_row_position == _peer_group.start) {
+            _reset_window_state();
+            const FrameRange range = _get_range_offset_frame_range();
+            _update_window_batch(_partition.start, _partition.end, range.start, range.end);
+        }
+
+        const int64_t base = _first_global_position_of_current_chunk();
+        const int64_t start = _get_global_position(_current_row_position) - base;
+        int64_t end = _get_global_position(_peer_group.end) - base;
+        if (end > chunk_size) {
+            end = chunk_size;
+        }
+        DCHECK_GE(start, 0);
+        DCHECK_GT(end, start);
+
+        _get_window_function_result(start, end);
+        _update_current_row_position(end - start);
     }
 }
 
@@ -1388,6 +1479,10 @@ void Analytor::_reset_state_for_next_partition() {
     _partition.start = _partition.end;
     _current_row_position = _partition.start;
     _range_nonnull_segment_valid = false;
+    _range_nonnull_start = 0;
+    _range_nonnull_end = 0;
+    _range_start_frame_cursor = 0;
+    _range_end_frame_cursor = 0;
     _reset_window_state();
     DCHECK_GE(_current_row_position, 0);
 }
